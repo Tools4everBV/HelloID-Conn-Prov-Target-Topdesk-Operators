@@ -1,0 +1,69 @@
+[
+  {
+    "key": "connection.url",
+    "type": "input",
+    "defaultValue": "",
+    "templateOptions": {
+      "label": "url",
+      "placeholder": "Please enter the url to TOPdesk",
+      "required": true
+    }
+  },
+  {
+    "key": "connection.username",
+    "type": "input",
+    "defaultValue": "",
+    "templateOptions": {
+      "label": "Username",
+      "placeholder": "Please enter the username",
+      "required": true
+    }
+  },
+  {
+    "key": "connection.apikey",
+    "type": "input",
+    "defaultValue": "",
+    "templateOptions": {
+      "label": "API Key",
+      "type": "password",
+      "placeholder": "Please enter a password",
+      "required": true
+    }
+  },
+  {
+    "key": "persons.errorNoDepartmentHR",
+    "type": "radio",
+    "defaultValue": "false",
+    "templateOptions": {
+      "label": "When a person has no department in HR",
+      "options": [
+        {
+          "value": "false",
+          "label": "Leave department field empty"
+        },
+        {
+          "value": "true",
+          "label": "Stop processing"
+        }
+      ]
+    }
+  },
+  {
+    "key": "persons.errorNoDepartmentTD",
+    "type": "radio",
+    "defaultValue": "one",
+    "templateOptions": {
+      "label": "When a department does not exist in TOPdesk",
+      "options": [
+        {
+          "value": "one",
+          "label": "Create department"
+        },
+        {
+          "value": "two",
+          "label": "Stop processing"
+        }
+      ]
+    }
+  }
+]
