@@ -15,7 +15,8 @@ $base64 = [System.Convert]::ToBase64String($bytes)
 $headers = @{ Authorization = "BASIC $base64"; Accept = 'application/json'; "Content-Type" = 'application/json; charset=utf-8' }
 
 #Connector settings
-
+$createMissingDepartment = [System.Convert]::ToBoolean($config.persons.errorNoDepartmentTD)
+$errorOnMissingDepartment = [System.Convert]::ToBoolean($config.persons.errorNoDepartmentHR)
 
 #mapping
 $username = $p.Accounts.MicrosoftActiveDirectory.SamAccountName;
