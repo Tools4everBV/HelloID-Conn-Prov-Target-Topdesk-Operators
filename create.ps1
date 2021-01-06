@@ -29,7 +29,7 @@ $account = @{
     gender = $p.Custom.TOPdeskGender;
     email = $email;
     exchangeAccount = $email;
-    title = $p.PrimaryContract.Title.Name;
+    jobTitle = $p.PrimaryContract.Title.Name;
     department = @{ id = $p.PrimaryContract.Department.DisplayName };
     employeeNumber = $p.ExternalID;
     networkLoginName = $username;

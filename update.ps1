@@ -28,7 +28,7 @@ $account = @{
     firstInitials = $p.Name.Initials;
     email = $email;
     exchangeAccount = $email;
-    title = $p.PrimaryContract.Title.Name;
+    jobTitle = $p.PrimaryContract.Title.Name;
     department = @{ id = $p.PrimaryContract.Department.DisplayName };
     networkLoginName = $username;
     branch = @{ id = $p.PrimaryContract.Location.Name };
