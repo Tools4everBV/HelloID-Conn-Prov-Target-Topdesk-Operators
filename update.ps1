@@ -21,19 +21,52 @@ $errorOnMissingDepartment = [System.Convert]::ToBoolean($config.persons.errorNoD
 #mapping
 $username = $p.Accounts.MicrosoftActiveDirectory.SamAccountName;
 $email = $p.Accounts.MicrosoftActiveDirectory.Mail;
+$surname = ""
+
+$prefix = ""
+if(-Not([string]::IsNullOrEmpty($p.Name.FamilyNamePrefix)))
+{
+    $prefix = $p.Name.FamilyNamePrefix + " "
+}
+
+$partnerprefix = ""
+if(-Not([string]::IsNullOrEmpty($p.Name.FamilyNamePartnerPrefix)))
+{
+    $partnerprefix = $p.Name.FamilyNamePartnerPrefix + " "
+}
+
+switch($p.Name.Convention)
+{
+    "B" {$surname += $prefix + $p.Name.FamilyName}
+    "P" {$surname += $partnerprefix + $p.Name.FamilyNamePartner}
+    "BP" {$surname += $prefix + $p.Name.FamilyName + " - " + $partnerprefix + $p.Name.FamilyNamePartner}
+    "PB" {$surname += $partnerprefix + $p.Name.FamilyNamePartner + " - " + $prefix + $p.Name.FamilyName}
+    default {$surname += $prefix + $p.Name.FamilyName}
+}
+
+
+switch($p.details.Gender)
+{
+    "M" {$gender = "MALE"}
+    "V" {$gender = "FEMALE"}
+    default {$gender = ""}
+}
 
 $account = @{
-    surName = $p.Custom.TOPdeskSurName;
+    surName = $surname;
     firstName = $p.Name.NickName;
     firstInitials = $p.Name.Initials;
-    email = $email;
+    gender = $gender;
+    email = $email; 
     exchangeAccount = $email;
-    jobTitle = $p.PrimaryContract.Title.Name;
+    jobTitle = $p.PrimaryContract.Title.Name;  
     department = @{ id = $p.PrimaryContract.Department.DisplayName };
+    employeeNumber = $p.ExternalID;
     networkLoginName = $username;
-    branch = @{ id = $p.PrimaryContract.Location.Name };
+    branch = @{ id = "Fixed Branch" };
     loginName = $username;
     loginPermission = $True;
+    secondLineCallOperator = $True;
 }
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
