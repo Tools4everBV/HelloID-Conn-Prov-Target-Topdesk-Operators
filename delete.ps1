@@ -53,6 +53,7 @@ if(-Not($dryRun -eq $True)){
         if([string]::IsNullOrEmpty($responseoperator.id)) {
             $auditMessage = $auditMessage + "; Operator is not found in TOPdesk'"
             $lookupFailure = $true
+	    $success = $true
             write-verbose -verbose "Operator not found in TOPdesk"
         } else {
             write-verbose -verbose "Operator lookup succesful"
