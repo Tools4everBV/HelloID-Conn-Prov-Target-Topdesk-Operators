@@ -26,18 +26,31 @@ if (-Not($dryRun -eq $True)) {
 		$base64 = [System.Convert]::ToBase64String($bytes)
 		$headers = @{ Authorization = "BASIC $base64"; Accept = 'application/json'; "Content-Type" = 'application/json; charset=utf-8' }
 	   
-		$uriOperatorgroupMembership  = $url + "/operators/id/$aref/operatorgroups"
-		$item = @{
-			id = $($pref.id)
-		} 
-        
-        $requestObject = @($item)        
-		
-        $request = ConvertTo-Json -InputObject $requestObject -Depth 10
+        if($pRef.Type -eq "OperatorGroup")
+        {
+            $uriOperatorgroupMembership  = $url + "/operators/id/$aref/operatorgroups"
+            $item = @{
+                id = $($pref.id)
+            } 
+            
+            $requestObject = @($item)        
+            
+            $request = ConvertTo-Json -InputObject $requestObject -Depth 10
 
-		$response = Invoke-WebRequest -Uri $uriOperatorgroupMembership -Method POST -ContentType $contentType -Headers $headers -Body ([System.Text.Encoding]::UTF8.GetBytes($request)) -UseBasicParsing
+            $response = Invoke-WebRequest -Uri $uriOperatorgroupMembership -Method POST -ContentType $contentType -Headers $headers -Body ([System.Text.Encoding]::UTF8.GetBytes($request)) -UseBasicParsing
+        }
+
+        if($pRef.Type -eq "PermissionGroup")
+        {
+            Write-Error "Not yet implemented"
+        }
+
+        if($pRef.Type -eq "CategoryFilter")
+        {
+            Write-Error "Not yet implemented"
+        }
 		
-		Write-Verbose -Verbose "Successfully added operator to operatorgroup"
+		Write-Verbose -Verbose "Successfully added operator to $($pRef.Type)"
 		
 		$success = $True;
 		$auditMessage = "Successfully added operator to operatorgroup"
