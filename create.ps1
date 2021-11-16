@@ -57,7 +57,7 @@ $account = @{
     firstName = $p.Name.NickName;
     firstInitials = $p.Name.Initials;
     gender = $gender;
-    email = $email; 
+    email = $email;   
     exchangeAccount = $email;
     jobTitle = $p.PrimaryContract.Title.Name;  
     department = @{ id = $p.PrimaryContract.Department.DisplayName };
@@ -184,6 +184,11 @@ $result = [PSCustomObject]@{
     AccountReference=$aRef;
 	AuditDetails=$auditMessage;
     Account=$account;
+
+    ExportData = [PSCustomObject]@{
+        Id = $aRef;
+    };
+
 }
 
 Write-Output $result | ConvertTo-Json -Depth 10
