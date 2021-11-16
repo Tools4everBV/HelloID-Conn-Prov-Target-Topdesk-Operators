@@ -54,7 +54,7 @@ switch($p.details.Gender)
 
 $account = @{
     surName = $surname;
-    firstName = $p.Name.NickName;
+    firstName = $p.Name.NickName; 
     firstInitials = $p.Name.Initials;
     gender = $gender;
     email = $email; 
@@ -76,7 +76,7 @@ if(-Not($dryRun -eq $True)){
 
         # get person by ID
         write-verbose -verbose "Person lookup..."
-        $PersonUrl = $url + "/persons/id/${aRef}"
+        $PersonUrl = $url + "/operators/id/${aRef}"
         $responsePersonJson = Invoke-WebRequest -uri $PersonUrl -Method Get -Headers $headers -UseBasicParsing
         $responsePerson = $responsePersonJson.Content | Out-String | ConvertFrom-Json
 
