@@ -5,8 +5,8 @@
 ## Versioning
 | Version | Description | Date |
 | - | - | - |
-| 1.1.0   | Updated to use the Exchange v2 module | 2022/05/09  |
-| 1.0.0   | Initial release | 2022/03/28  |
+| 1.1.0   | Updated to use the Exchange v2 module | 2022/05/19  |
+| 1.0.0   | Initial release | 2020/12/15  |
 
 ## Table of contents
 - [Versioning](#versioning)
