@@ -1,67 +1,88 @@
 [
   {
-    "key": "connection.url",
+    "key": "baseUrl",
     "type": "input",
     "defaultValue": "",
     "templateOptions": {
       "label": "url",
-      "placeholder": "Please enter the url to TOPdesk",
+      "placeholder": "https://customer-test.topdesk.net",
+      "description": "Please enter the url to the TOPdesk environment",
       "required": true
     }
   },
   {
-    "key": "connection.username",
+    "key": "username",
     "type": "input",
     "defaultValue": "",
     "templateOptions": {
       "label": "Username",
-      "placeholder": "Please enter the username",
+      "placeholder": "",
+      "description": "Please enter the username",
       "required": true
     }
   },
   {
-    "key": "connection.apikey",
+    "key": "apikey",
     "type": "input",
     "defaultValue": "",
     "templateOptions": {
-      "label": "API Key",
+      "label": "Application password",
       "type": "password",
-      "placeholder": "Please enter a password",
+      "placeholder": "",
+      "description": "Please enter the aplication password",
       "required": true
     }
   },
   {
-    "key": "persons.errorNoDepartmentHR",
+    "key": "lookupErrorTopdesk",
     "type": "radio",
-    "defaultValue": "false",
+    "defaultValue": "true",
     "templateOptions": {
-      "label": "When a person has no department in HR",
+      "label": "When an item can't be found in  TOPdesk",
       "options": [
         {
-          "value": "false",
-          "label": "Leave department field empty"
+          "value": "true",
+          "label": "Stop processing and generate an error"
         },
         {
-          "value": "true",
-          "label": "Stop processing"
+          "value": "false",
+          "label": "Keep the current value and continue"
         }
       ]
     }
   },
   {
-    "key": "persons.errorNoDepartmentTD",
+    "key": "lookupErrorHrDepartment",
     "type": "radio",
-    "defaultValue": "false",
+    "defaultValue": "true",
     "templateOptions": {
-      "label": "When a department does not exist in TOPdesk",
+      "label": "When a department is empty because it's missing in the source data",
       "options": [
         {
           "value": "true",
-          "label": "Create department"
+          "label": "Stop processing and generate an error"
         },
         {
           "value": "false",
-          "label": "Stop processing"
+          "label": "Clear the department field in TOPdesk"
+        }
+      ]
+    }
+  },
+  {
+    "key": "lookupErrorHrBudgetHolder",
+    "type": "radio",
+    "defaultValue": "true",
+    "templateOptions": {
+      "label": "When a budgetholder is empty because it's missing in the source data",
+      "options": [
+        {
+          "value": "true",
+          "label": "Stop processing and generate an error"
+        },
+        {
+          "value": "false",
+          "label": "Clear the budgetholder field in TOPdesk"
         }
       ]
     }

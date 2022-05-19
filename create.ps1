@@ -1,194 +1,527 @@
-﻿#Initialize default properties
-$success = $False
+$c = $configuration | ConvertFrom-Json
 $p = $person | ConvertFrom-Json
-$config = $configuration | ConvertFrom-Json 
-$auditMessage = " not created succesfully"
+$success = $false
+$auditLogs = [Collections.Generic.List[PSCustomObject]]::new()
 
-#TOPdesk system data
-$url = $config.connection.url
-$apiKey = $config.connection.apikey
-$userName = $config.connection.username
+# Set TLS to accept TLS, TLS 1.1 and TLS 1.2
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
 
-$operatorUrl = $url + '/operators'
-$bytes = [System.Text.Encoding]::ASCII.GetBytes("${userName}:${apiKey}")
-$base64 = [System.Convert]::ToBase64String($bytes)
-$headers = @{ Authorization = "BASIC $base64"; Accept = 'application/json'; "Content-Type" = 'application/json; charset=utf-8' }
+$VerbosePreference = "SillentlyContinue"
+$InformationPreference = "Continue"
+$WarningPreference = "Continue"
 
-#Connector settings
-$createMissingDepartment = [System.Convert]::ToBoolean($config.persons.errorNoDepartmentTD)
-$errorOnMissingDepartment = [System.Convert]::ToBoolean($config.persons.errorNoDepartmentHR)
+# TOPdesk system data
+$baseUrl = $c.baseUrl
+$username = $c.username
+$apiKey = $c.apikey
 
-#mapping
-$username = $p.Accounts.MicrosoftActiveDirectory.SamAccountName
-$email = $p.Accounts.MicrosoftActiveDirectory.Mail
-$surname = ""
+# Troubleshooting
+# $p.ExternalID = '12345678'
+# $dryRun = $false
 
-$prefix = ""
-if(-Not([string]::IsNullOrEmpty($p.Name.FamilyNamePrefix)))
-{
-    $prefix = $p.Name.FamilyNamePrefix + " "
+#region mapping
+
+# Last name generation based on name convention code
+#  B  "<birth name prefix> <birth name>"
+#  P  "<partner name prefix> <partner name>"
+#  BP "<birth name prefix> <birth name> - <partner name prefix> <partner name>"
+#  PB "<partner name prefix> <partner name> - <birth name prefix> <birth name>"
+function New-TopdeskSurname {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [object]
+        $person
+    )
+
+    if ([string]::IsNullOrEmpty($person.Name.FamilyNamePrefix)) {
+        $prefix = ""
+    }
+    else {
+        $prefix = $person.Name.FamilyNamePrefix + " "
+    }
+
+    if ([string]::IsNullOrEmpty($person.Name.FamilyNamePartnerPrefix)) {
+        $partnerPrefix = ""
+    }
+    else {
+        $partnerPrefix = $person.Name.FamilyNamePartnerPrefix + " "
+    }
+
+    $TopdeskSurname = switch ($person.Name.Convention) {
+        "B" { $person.Name.FamilyName }
+        "BP" { $person.Name.FamilyName + " - " + $partnerprefix + $person.Name.FamilyNamePartner }
+        "P" { $person.Name.FamilyNamePartner }
+        "PB" { $person.Name.FamilyNamePartner + " - " + $prefix + $person.Name.FamilyName }
+        default { $prefix + $person.Name.FamilyName }
+    }
+
+    $TopdeskPrefix = switch ($person.Name.Convention) {
+        "B" { $prefix }
+        "BP" { $prefix }
+        "P" { $partnerPrefix }
+        "PB" { $partnerPrefix }
+        default { $prefix }
+    }
+
+    $output = [PSCustomObject]@{
+        prefixes = $TopdeskPrefix
+        surname  = $TopdeskSurname
+    }
+    Write-Output $output
 }
 
-$partnerprefix = ""
-if(-Not([string]::IsNullOrEmpty($p.Name.FamilyNamePartnerPrefix)))
-{
-    $partnerprefix = $p.Name.FamilyNamePartnerPrefix + " "
-}
+function New-TopdeskGender {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [object]
+        $person
+    )
 
-switch($p.Name.Convention)
-{
-    "B" {$surname += $prefix + $p.Name.FamilyName}
-    "P" {$surname += $partnerprefix + $p.Name.FamilyNamePartner}
-    "BP" {$surname += $prefix + $p.Name.FamilyName + " - " + $partnerprefix + $p.Name.FamilyNamePartner}
-    "PB" {$surname += $partnerprefix + $p.Name.FamilyNamePartner + " - " + $prefix + $p.Name.FamilyName}
-    default {$surname += $prefix + $p.Name.FamilyName}
-}
+    switch ($person.details.Gender) {
+        "M" { $gender = "MALE" }
+        "V" { $gender = "FEMALE" }
+        default { $gender = 'UNDEFINED' }
+    }
 
-
-switch($p.details.Gender)
-{
-    "M" {$gender = "MALE"}
-    "V" {$gender = "FEMALE"}
-    default {$gender = ""}
-}
-
-$account = @{
-    surName = $surname;
-    firstName = $p.Name.NickName;
-    firstInitials = $p.Name.Initials;
-    gender = $gender;
-    email = $email;   
-    exchangeAccount = $email;
-    jobTitle = $p.PrimaryContract.Title.Name;  
-    department = @{ id = $p.PrimaryContract.Department.DisplayName };
-    employeeNumber = $p.ExternalID;
-    networkLoginName = $username;
-    branch = @{ id = "Fixed Branch" };
-    loginName = $username;
-    loginPermission = $True;
-    secondLineCallOperator = $True;
+    Write-Output $gender
 }
 
 #correlation
-$correlationField = 'employeeNumber'
-$correlationValue = $p.ExternalID
+$operatorCorrelationField = 'employeeNumber'
+$operatorCorrelationValue = $p.ExternalID
 
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-if(-Not($dryRun -eq $True)) {
- try {
-    $create = $True
-    write-verbose -verbose "Correlate operator"
-    $personCorrelationUrl = $operatorUrl + "/?page_size=2&query=$($correlationField)=='$($correlationValue)'"
-    $responseCorrelationJson = Invoke-WebRequest -uri $personCorrelationUrl -Method Get -Headers $headers -UseBasicParsing
-    $responseCorrelation = $responseCorrelationJson | ConvertFrom-Json
+$updateOnCorrelate = $false
 
-    if(-Not($null -eq $responseCorrelation) -and -Not($null -eq $responseCorrelation[0].id)) {
-        $aRef = $responseCorrelation[0].id 
-        $create = $False
-        $success = $True
-        $auditMessage = "Correlation found record $($correlationValue). Update succesful"
-        write-verbose -verbose "Operator found in TOPdesk"
+# Account mapping. See for all possible options the Topdesk 'supporting files' API documentation at
+# https://developers.topdesk.com/explorer/?page=supporting-files#/Persons/createPerson
+$account = [PSCustomObject]@{
+    surName          = (New-TopdeskSurname -Person $p).surname       # Generate surname according to the naming convention code.
+    firstName        = $p.Name.NickName
+    firstInitials    = $p.Name.Initials
+    prefixes         = (New-TopdeskSurname -Person $p).prefixes     # Generate prefixes according to the naming convention code.
+    # title            = $p.Custom.title
+    gender           = New-TopdeskGender -Person $p
+
+    telephone        = $p.Contact.Business.Phone.Fixed
+    mobileNumber     = $p.Contact.Business.Phone.Mobile
+    # faxNumber        = $p.Custom.faxnumber
+
+    employeeNumber   = $p.ExternalId
+    email            = $p.Accounts.MicrosoftActiveDirectory.Mail
+    networkLoginName = $p.Accounts.MicrosoftActiveDirectory.SamAccountName
+    loginName        = $p.Accounts.MicrosoftActiveDirectory.userPrincipalName
+
+    jobTitle         = $p.PrimaryContract.Title.Name
+    department       = @{ lookupValue = $p.PrimaryContract.Department.DisplayName }
+    budgetholder     = @{ lookupValue = $p.PrimaryContract.CostCenter.Name }
+    branch           = @{ lookupValue = $p.PrimaryContract.Location.Name } # or  'Fixed branch'
+}
+
+#endregion mapping
+
+#region helperfunctions
+
+function Get-TopdeskDepartment {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $BaseUrl,
+
+        [Parameter(Mandatory)]
+        [System.Collections.IDictionary]
+        $Headers,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        $LookupErrorHrDepartment,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        $LookupErrorTopdesk,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [Object]
+        [ref]$Account,
+
+        [System.Collections.Generic.List[PSCustomObject]]
+        [ref]$AuditLogs
+    )
+
+    # Check if department.lookupValue property exists in the account object set in the mapping
+    if (-not($account.department.Keys -Contains 'lookupValue')) {
+        $errorMessage = "Requested to lookup department, but department.lookupValue is not set. This is a scripting issue."
+        $auditLogs.Add([PSCustomObject]@{
+                Message = $errorMessage
+                IsError = $true
+            })
+        return
     }
 
-    if($create){  
-        write-verbose -verbose "Operator not found in TOPdesk"
-        $lookupFailure = $False
-        
-        # get branch
-        write-verbose -verbose "Branch lookup..."
-        if ([string]::IsNullOrEmpty($account.branch.id)) {
-            $auditMessage = $auditMessage + "; Branch is empty for person '$($p.ExternalId)'"
-            $lookupFailure = $True
-            write-verbose -verbose "Branch lookup failed"
-        } else {
-            $branchUrl = $url + "/branches?query=name=='$($account.branch.id)'"
-            $responseBranchJson = Invoke-WebRequest -uri $branchUrl -Method Get -Headers $headers -UseBasicParsing
-            $personBranch = $responseBranchJson.Content | Out-String | ConvertFrom-Json
-        
-            if ([string]::IsNullOrEmpty($personBranch.id) -eq $True) {
-                $auditMessage = $auditMessage + "; Branch '$($account.branch.id)' not found!"
-                $lookupFailure = $True
-                write-verbose -verbose "Branch lookup failed"
-            } else {
-                $account.branch.id = $personBranch.id
-                write-verbose -verbose "Branch lookup succesful"
-            }
+    # When department.lookupValue is null or empty (it is empty in the source or it's a mapping error)
+    if ([string]::IsNullOrEmpty($account.department.lookupValue)) {
+        if ([System.Convert]::ToBoolean($LookupErrorHrDepartment)) {
+            # True, no department in lookup value = throw error
+            $errorMessage = "The lookup value for Department is empty and the connector is configured to stop when this happens."
+            $auditLogs.Add([PSCustomObject]@{
+                    Message = $errorMessage
+                    IsError = $true
+                })
         }
-        
-        # get department
-        write-verbose -verbose "Department lookup..."
-        if ([string]::IsNullOrEmpty($account.department.id)) {
-            if ($errorOnMissingDepartment) { 
-                $lookupFailure = $true
-            }
-            write-verbose -verbose "Department lookup failed. HR Department is empty for person '$($p.ExternalId)'"
-        } else {
-            $departmentUrl = $url + "/departments"
-            $responseDepartmentJson = Invoke-WebRequest -uri $departmentUrl -Method Get -Headers $headers -UseBasicParsing
-            $responseDepartment = $responseDepartmentJson.Content | Out-String | ConvertFrom-Json
-            $personDepartment = $responseDepartment | Where-object name -eq $account.department.id
-
-            if ([string]::IsNullOrEmpty($personDepartment.id) -eq $True) {
-                Write-Output -Verbose "Department '$($account.department.id)' not found"
-                if ($createMissingDepartment) {
-                    Write-Verbose -Verbose "Creating department '$($account.department.id)' in TOPdesk"
-                    $bodyDepartment = @{ name=$account.department.id } | ConvertTo-Json -Depth 1
-                    $responseDepartmentCreateJson = Invoke-WebRequest -uri $departmentUrl -Method POST -Headers $headers -Body ([Text.Encoding]::UTF8.GetBytes($bodyDepartment)) -UseBasicParsing
-                    $responseDepartmentCreate = $responseDepartmentCreateJson.Content | Out-String | ConvertFrom-Json
-                    Write-Verbose -Verbose "Created Department name '$($account.department.id)' with id '$($responseDepartmentCreate.id)'"
-                    $account.department.id = $responseDepartmentCreate.id
-                } else {
-                    $auditMessage = $auditMessage + "; Department '$($account.department.id)' not found"
-                    write-verbose -verbose "Department lookup failed"
-                    $lookupFailure = $true
-                }
-            } else {
-                $account.department.id = $personDepartment.id
-                write-verbose -verbose "Department lookup succesful"
-            }
-        }
-              
-        if (!($lookupFailure)) {
-            write-verbose -verbose "Creating account for '$($p.ExternalID)'"
-            $bodyOperatorCreate = $account | ConvertTo-Json -Depth 10
-            $responseOperatorCreate = Invoke-WebRequest -uri $operatorUrl -Method POST -Headers $headers -Body ([Text.Encoding]::UTF8.GetBytes($bodyOperatorCreate)) -UseBasicParsing
-            $responseOperatorCreateJson = $responseOperatorCreate.Content | Out-String | ConvertFrom-Json
-            if(![string]::IsNullOrEmpty($responseOperatorCreateJson.id)) {
-                $aRef = $responseOperatorCreateJson.id
-                $success = $True
-                $auditMessage = "created succesfully"
-            }  
-        } else {
-            $success = $False
+        else {
+            # False, no department in lookup value = clear value
+            Write-Verbose "Clearing department. (lookupErrorHrdDepartment = False)"
+            $account.department.PSObject.Properties.Remove('lookupValue')
+            $account.department | Add-Member -NotePropertyName id -NotePropertyValue $null
         }
     }
+    else {
+        # Lookup Value is filled in, lookup value in Topdesk
+        $splatParams = @{
+            Uri     = "$baseUrl/tas/api/departments"
+            Method  = 'GET'
+            Headers = $Headers
+        }
+        $responseGet = Invoke-RestMethod @splatParams
+        $department = $responseGet | Where-object name -eq $account.department.lookupValue
 
-    } catch {
-        if ($_.Exception.Response.StatusCode -eq "Forbidden") {
-            Write-Verbose -Verbose "Something went wrong $($_.ScriptStackTrace). Error message: '$($_.Exception.Message)'"
-            $auditMessage = " not created succesfully: '$($_.Exception.Message)'" 
-        } elseif (![string]::IsNullOrEmpty($_.ErrorDetails.Message)) {
-            Write-Verbose -Verbose "Something went wrong $($_.ScriptStackTrace). Error message: '$($_.ErrorDetails.Message)'" 
-            $auditMessage = " not created succesfully: '$($_.ErrorDetails.Message)'"
-        } else {
-            Write-Verbose -Verbose "Something went wrong $($_.ScriptStackTrace). Error message: '$($_)'" 
-            $auditMessage = " not created succesfully: '$($_)'" 
-        }        
-        $success = $False
+        # When department is not found in Topdesk
+        if ([string]::IsNullOrEmpty($department.id)) {
+            if ([System.Convert]::ToBoolean($LookupErrorTopdesk)) {
+
+                # True, no department found = throw error
+                $errorMessage = "Department [$($account.department.lookupValue)] not found in Topdesk and the connector is configured to stop when this happens."
+                $auditLogs.Add([PSCustomObject]@{
+                        Message = $errorMessage
+                        IsError = $true
+                    })
+            }
+            else {
+
+                # False, no department found = remove department field (leave empty on creation or keep current value on update)
+                $Account.department.Remove('lookupValue')
+                $Account.PSObject.Properties.Remove('department')
+                Write-Verbose "Not overwriting or setting department as it can't be found in Topdesk. (lookupErrorTopdesk = False)"
+            }
+        }
+        else {
+
+            # Department is found in Topdesk, set in Topdesk
+            $Account.department.Remove('lookupValue')
+            $Account.department.Add('id', $department.id)
+        }
     }
 }
 
-#build up result
-$result = [PSCustomObject]@{ 
-	Success= $success;
-    AccountReference=$aRef;
-	AuditDetails=$auditMessage;
-    Account=$account;
+function Get-TopdeskBudgetHolder {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $BaseUrl,
 
-    ExportData = [PSCustomObject]@{
-        Id = $aRef;
+        [Parameter(Mandatory)]
+        [System.Collections.IDictionary]
+        $Headers,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        $LookupErrorHrBudgetHolder,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        $LookupErrorTopdesk,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [Object]
+        [ref]$Account,
+
+        [System.Collections.Generic.List[PSCustomObject]]
+        [ref]$AuditLogs
+    )
+
+    # Check if budgetholder.lookupValue property exists in the account object set in the mapping
+    if (-not($account.budgetholder.Keys -Contains 'lookupValue')) {
+        $errorMessage = "Requested to lookup Budgetholder, but budgetholder.lookupValue is missing. This is a scripting issue."
+        $auditLogs.Add([PSCustomObject]@{
+                Message = $errorMessage
+                IsError = $true
+            })
+        return
+    }
+
+    # When budgetholder.lookupValue is null or empty (it is empty in the source or it's a mapping error)
+    if ([string]::IsNullOrEmpty($account.budgetholder.lookupValue)) {
+        if ([System.Convert]::ToBoolean($lookupErrorHrBudgetHolder)) {
+
+            # True, no budgetholder in lookup value = throw error
+            $errorMessage = "The lookup value for Budgetholder is empty and the connector is configured to stop when this happens."
+            $auditLogs.Add([PSCustomObject]@{
+                    Message = $errorMessage
+                    IsError = $true
+                })
+        }
+        else {
+
+            # False, no budgetholder in lookup value = clear value
+            $account.budgetHolder.PSObject.Properties.Remove('lookupValue')
+            $account.budgetHolder | Add-Member -NotePropertyName id -NotePropertyValue $null
+            Write-Verbose "Clearing budgetholder. (lookupErrorHrBudgetHolder = False)"
+        }
+    }
+    else {
+
+        # Lookup Value is filled in, lookup value in Topdesk
+        $splatParams = @{
+            Uri     = "$baseUrl/tas/api/budgetholders"
+            Method  = 'GET'
+            Headers = $Headers
+        }
+        $responseGet = Invoke-RestMethod @splatParams
+        $budgetHolder = $responseGet | Where-object name -eq $account.budgetHolder.lookupValue
+
+        # When budgetholder is not found in Topdesk
+        if ([string]::IsNullOrEmpty($budgetHolder.id)) {
+            if ([System.Convert]::ToBoolean($lookupErrorTopdesk)) {
+                # True, no budgetholder found = throw error
+                $errorMessage = "Budgetholder [$($account.budgetHolder.lookupValue)] not found in Topdesk and the connector is configured to stop when this happens."
+                $auditLogs.Add([PSCustomObject]@{
+                        Message = $errorMessage
+                        IsError = $true
+                    })
+            }
+            else {
+
+                # False, no budgetholder found = remove budgetholder field (leave empty on creation or keep current value on update)
+                $Account.budgetHolder.Remove('lookupValue')
+                $account.PSObject.Properties.Remove('budgetHolder')
+                Write-Verbose "Not overwriting or setting Budgetholder as it can't be found in Topdesk. (lookupErrorTopdesk = False)"
+            }
+        }
+        else {
+
+            # Budgetholder is found in Topdesk, set in Topdesk
+            $Account.budgetHolder.Remove('lookupValue')
+            $Account.PSObject.Properties.Remove('budgetHolder')
+        }
+    }
+}
+
+function Get-TopdeskBranch {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $BaseUrl,
+
+        [Parameter(Mandatory)]
+        [System.Collections.IDictionary]
+        $Headers,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [Object]
+        [ref]$Account,
+
+        [System.Collections.Generic.List[PSCustomObject]]
+        [ref]$AuditLogs
+    )
+
+    # Check if branch.lookupValue property exists in the account object set in the mapping
+    if (-not($account.branch.Keys -Contains 'lookupValue')) {
+        $errorMessage = "Requested to lookup branch, but branch.lookupValue is missing. This is a scripting issue."
+        $auditLogs.Add([PSCustomObject]@{
+                Message = $errorMessage
+                IsError = $true
+            })
+        return
+    }
+
+    # When branch.lookupValue is null or empty (it is empty in the source or it's a mapping error)
+    if ([string]::IsNullOrEmpty($Account.branch.lookupValue)) {
+        # As branch is always a required field,  no branch in lookup value = error
+        $errorMessage = "The lookup value for Branch is empty but it's a required field."
+        $auditLogs.Add([PSCustomObject]@{
+                Message = $errorMessage
+                IsError = $true
+            })
+    }
+    else {
+        # Lookup Value is filled in, lookup value in Topdesk
+        $splatParams = @{
+            Uri     = "$baseUrl/tas/api/branches"
+            Method  = 'GET'
+            Headers = $Headers
+        }
+        $responseGet = Invoke-RestMethod @splatParams
+        $branch = $responseGet | Where-object name -eq $Account.branch.lookupValue
+
+        # When branch is not found in Topdesk
+        if ([string]::IsNullOrEmpty($branch.id)) {
+
+            # As branch is a required field, if no branch is found, an error is logged
+            $errorMessage = "Branch with name [$($Account.branch.lookupValue)] isn't found in Topdesk but it's a required field."
+            $auditLogs.Add([PSCustomObject]@{
+                    Message = $errorMessage
+                    IsError = $true
+                })
+        }
+        else {
+
+            # Branch is found in Topdesk, set in Topdesk
+            $Account.branch.Remove('lookupValue')
+            $Account.branch.Add('id', $branch.id)
+        }
+    }
+}
+
+#endregion helperfunctions
+
+# Create or Correlate user
+try {
+    if (-Not($dryRun -eq $True)) {
+        # Create basic authentication string
+        $bytes = [System.Text.Encoding]::ASCII.GetBytes("${username}:${apikey}")
+        $base64 = [System.Convert]::ToBase64String($bytes)
+
+        # Set authentication headers
+        $headers = [System.Collections.Generic.Dictionary[string, string]]::new()
+        $headers.Add("Authorization", "BASIC $base64")
+        $headers.Add("Accept", 'application/json')
+
+        # Make sure baseUrl ends with '/'
+        if ($baseUrl.EndsWith("/") -eq $false) {
+            $baseUrl = $baseUrl + "/"
+        }
+
+        # Resolve branch id
+        $splatParamsBranch = @{
+            Account   = [ref]$account
+            AuditLogs = [ref]$auditLogs
+            Headers   = $headers
+            baseUrl   = $c.baseUrl
+        }
+        Get-TopdeskBranch @splatParamsBranch
+
+        # Resolve department id
+        $splatParamsDepartment = @{
+            Account                 = [ref]$account
+            AuditLogs               = [ref]$auditLogs
+            Headers                 = $headers
+            baseUrl                 = $c.baseUrl
+            lookupErrorHrDepartment = $c.lookupErrorHrDepartment
+            lookupErrorTopdesk      = $c.lookupErrorTopdesk
+        }
+        Get-TopdeskDepartment @splatParamsDepartment
+
+        # Resolve budgetholder id
+        $splatParamsBudgetholder = @{
+            Account                   = [ref]$account
+            AuditLogs                 = [ref]$auditLogs
+            Headers                   = $headers
+            baseUrl                   = $c.baseUrl
+            lookupErrorHrBudgetholder = $c.lookupErrorHrBudgetholder
+            lookupErrorTopdesk        = $c.lookupErrorTopdesk
+        }
+        Get-TopdeskBudgetholder @splatParamsBudgetholder
+
+        # Search for account
+        Write-Verbose "Searching for operator with $($operatorCorrelationField): $($operatorCorrelationValue)"
+        $operatorUri = $baseUrl + "tas/api/operators"
+        $correlateUri = $operatorUri + "/?page_size=2&query=$($operatorCorrelationField)=='$($operatorCorrelationValue)';archived==false"
+        $correlateResponse = Invoke-RestMethod -uri $correlateUri -Method Get -Headers $headers -UseBasicParsing
+    
+        if ($correlateResponse.id.Count -gt 1) {
+            throw "Multiple operators found in TOPdesk with $($operatorCorrelationField): $($operatorCorrelationValue). Please correct this so the $($operatorCorrelationField) is unique."
+        }
+        elseif ($correlateResponse.id.Count -eq 1) {
+            # Correlate account
+            $aRef = @{
+                loginName = $correlateResponse.loginName
+                id        = $correlateResponse.id
+            }
+
+            $success = $true;
+            $auditLogs.Add([PSCustomObject]@{
+                    Action  = "CreateAccount"
+                    Message = "Successfully correlated to account $($aRef.loginName) ($($aRef.id))";
+                    IsError = $false;
+                });
+
+            # Update account if so configured
+            if ($updateOnCorrelate -eq $true) {
+                Write-Verbose "Updating operator $($aRef.loginName) ($($aRef.id))"
+
+                $body = $account | ConvertTo-Json -Depth 10
+                $updateUri = $operatorUri + "/id/$($aRef.id)"
+                $updateResponse = Invoke-RestMethod -Method Patch -Uri $updateUri -Headers $headers -Body ([System.Text.Encoding]::UTF8.GetBytes($body)) -ContentType "application/json" -Verbose:$false
+
+                # Make sure to always have the latest data in $aRef (eventhough this shouldn't change)
+                $aRef = @{
+                    loginName = $updateResponse.loginName
+                    id        = $updateResponse.id
+                }
+
+                $success = $true;
+                $auditLogs.Add([PSCustomObject]@{
+                        Action  = "CreateAccount"
+                        Message = "Successfully updated account $($aRef.loginName) ($($aRef.id))";
+                        IsError = $false;
+                    }); 
+            }
+        }
+        elseif ($null -eq $correlateResponse.id) {
+            # Create account
+            Write-Verbose "Creating account with loginName: $($account.loginName)"
+            $body = $account | ConvertTo-Json -Depth 10
+            $createUri = $operatorUri
+            $createResponse = Invoke-RestMethod -Method Post -Uri $createUri -Headers $headers -Body ([System.Text.Encoding]::UTF8.GetBytes($body)) -ContentType "application/json" -Verbose:$false
+
+            # Make sure to always have the latest data in $aRef (eventhough this shouldn't change)
+            $aRef = @{
+                loginName = $createResponse.loginName
+                id        = $createResponse.id
+            }
+
+            $success = $true;
+            $auditLogs.Add([PSCustomObject]@{
+                    Action  = "CreateAccount"
+                    Message = "Successfully created account $($aRef.loginName) ($($aRef.id))";
+                    IsError = $false;
+                }); 
+        }
+    }
+}
+catch {
+    $auditLogs.Add([PSCustomObject]@{
+            Action  = "CreateAccount"
+            Message = "Error creating account $($account.loginName): $($_)"
+            IsError = $True
+        });
+    Write-Warning $_
+}
+
+# Send results
+$result = [PSCustomObject]@{
+    Success          = $success
+    AccountReference = $aRef
+    AuditLogs        = $auditLogs
+    Account          = $account
+
+    # Optionally return data for use in other systems
+    ExportData       = [PSCustomObject]@{
+        loginName = $aRef.loginName;
+        id        = $aRef.id;
     };
-
 }
 
 Write-Output $result | ConvertTo-Json -Depth 10
