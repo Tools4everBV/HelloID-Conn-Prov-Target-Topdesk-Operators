@@ -2,6 +2,10 @@
 |:---------------------------|
 | This repository contains the connector and configuration code only. The implementer is responsible to acquire the connection details such as username, password, certificate, etc. You might even need to sign a contract or agreement with the supplier before implementing this connector. Please contact the client's application manager to coordinate the connector requirements. |
 
+<p align="center">
+  <img src="[Assets/GoogleLogo.jpg](https://user-images.githubusercontent.com/69046642/169335504-e9702f25-fcc0-426d-9e70-1936f40b40d6.png)">
+</p>
+
 ## Versioning
 | Version | Description | Date |
 | - | - | - |
