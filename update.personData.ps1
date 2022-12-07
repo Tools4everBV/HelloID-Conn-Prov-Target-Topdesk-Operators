@@ -49,7 +49,7 @@ try {
     # Search for account
     Write-Verbose "Searching for person with $($personCorrelationField): $($personCorrelationValue)"
     $personUri = $baseUrl + "tas/api/persons"
-    $getPersonUri = $personUri + "/?page_size=2&query=$($personCorrelationField)=='$($personCorrelationValue)';archived==false"
+    $getPersonUri = $personUri + "/?page_size=2&query=$($personCorrelationField)=='$($personCorrelationValue)'"
     $getPersonResponse = Invoke-RestMethod -uri $getPersonUri -Method Get -Headers $headers -UseBasicParsing
     
     if ($null -eq $getPersonResponse.id) {
@@ -95,6 +95,9 @@ $account = [PSCustomObject]@{
     department       = @{ id = $getPersonResponse.department.id }
     budgetHolder     = @{ id = $getPersonResponse.budgetHolder.id }
     branch           = @{ id = $getPersonResponse.branch.id }
+
+    loginPermission  = $true
+    exchangeAccount  = $getPersonResponse.email
 }
 
 # Update user
@@ -119,7 +122,7 @@ try {
         $operatorUri = $baseUrl + "tas/api/operators"
         $correlateUri = $operatorUri + "/?page_size=2&query=$($operatorCorrelationField)=='$($operatorCorrelationValue)';archived==false"
         $correlateResponse = Invoke-RestMethod -uri $correlateUri -Method Get -Headers $headers -UseBasicParsing
-       
+
         if ($null -eq $correlateResponse.id) {
             throw "No operator found in TOPdesk with $($operatorCorrelationField): $($operatorCorrelationValue)"
         }

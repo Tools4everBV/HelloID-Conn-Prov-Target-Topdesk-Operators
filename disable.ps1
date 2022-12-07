@@ -15,6 +15,7 @@ $WarningPreference = "Continue"
 $baseUrl = $c.baseUrl
 $username = $c.username
 $apiKey = $c.apikey
+$operatorArchivingReason = $c.operatorArchivingReason
 
 # Troubleshooting
 # $aRef = @{
@@ -76,9 +77,9 @@ try {
 
         # Search for account
         Write-Verbose "Searching for operator with $($operatorCorrelationField): $($operatorCorrelationValue)"
-        $correlateUri = $operatorUri + "/?page_size=2&query=$($operatorCorrelationField)=='$($operatorCorrelationValue)';archived==false"
+        $correlateUri = $operatorUri + "/?page_size=2&query=$($operatorCorrelationField)=='$($operatorCorrelationValue)'"
         $correlateResponse = Invoke-RestMethod -uri $correlateUri -Method Get -Headers $headers -UseBasicParsing
-       
+
         if ($null -eq $correlateResponse.id) {
             throw "No operator found in TOPdesk with $($operatorCorrelationField): $($operatorCorrelationValue)"
         }

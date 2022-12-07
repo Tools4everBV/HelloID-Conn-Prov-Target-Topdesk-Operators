@@ -9,7 +9,8 @@
 ## Versioning
 | Version | Description | Date |
 | - | - | - |
-| 1.1.0   | Updated to use the Exchange v2 module | 2022/05/19  |
+| 1.2.0   | Introduced archiving/unarchiving in create and also lookup of operators  | 2022/12/07  |
+| 1.1.0   | Updated  | 2022/05/19  |
 | 1.0.0   | Initial release | 2020/12/15  |
 
 ## Table of contents
@@ -50,6 +51,7 @@ The following settings are required to connect to the API.
 | URL                   | The URL to the TOPdesk environment                                | Yes         |
 | Username              | The username of the operator to connect to the API                | Yes         |
 | Application password  | The application password for the operator to connect to the API.<br> For more information on how to create this, please see the [TOPdesk documentation](https://developers.topdesk.com/tutorial.html#show-collapse-usage-createAppPassword).    | Yes         |
+| Operator archiving reason  | The default archiving reason, for example: Persoon uit organisatie   | Yes         |
 | When an item can't be found in TOPdesk  | What to do when the mapping is provided (from source data) but no matching item in TOPdesk can be found. Choose to either: <ul><li>generate an error and stop processing</li><li>or do not set/update field in TOPdesk</li></ul>   | Yes         |
 | When a department is empty because it's missing in the source data  | What to do when the department is mising in the mapping beause it is missing in source data. Choose to either: <ul><li>generate an error and stop processing</li><li>or do not set/update the department field in TOPdesk</li></ul> | Yes         |
 | When a budgetholder is empty because it's missing in the source data  | What to do when the department is mising in the mapping beause it is missing in source data. Choose to either: <ul><li> generate an error and stop processing</li><li>or do not set/update the budgetholder field in TOPdesk</li></ul>  | Yes         |

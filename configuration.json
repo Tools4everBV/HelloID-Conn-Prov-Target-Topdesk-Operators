@@ -34,6 +34,17 @@
     }
   },
   {
+    "key": "operatorArchivingReason",
+    "type": "input",
+    "defaultValue": "",
+    "templateOptions": {
+      "label": "operatorArchivingReason",
+      "placeholder": "",
+      "description": "Please enter the default reason for archiving",
+      "required": true
+    }
+  },
+  {
     "key": "lookupErrorTopdesk",
     "type": "radio",
     "defaultValue": "true",

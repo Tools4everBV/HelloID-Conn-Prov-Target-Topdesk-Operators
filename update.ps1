@@ -122,6 +122,9 @@ $account = [PSCustomObject]@{
     department       = @{ lookupValue = $p.PrimaryContract.Department.DisplayName }
     budgetholder     = @{ lookupValue = $p.PrimaryContract.CostCenter.Name }
     branch           = @{ lookupValue = $p.PrimaryContract.Location.Name } # or  'Fixed branch'
+
+    loginPermission  = $true
+    exchangeAccount  = $p.Accounts.MicrosoftActiveDirectory.Mail
 }
 
 #endregion mapping
@@ -442,7 +445,7 @@ try {
         $operatorUri = $baseUrl + "tas/api/operators"
         $correlateUri = $operatorUri + "/?page_size=2&query=$($operatorCorrelationField)=='$($operatorCorrelationValue)';archived==false"
         $correlateResponse = Invoke-RestMethod -uri $correlateUri -Method Get -Headers $headers -UseBasicParsing
-       
+
         if ($null -eq $correlateResponse.id) {
             throw "No operator found in TOPdesk with $($operatorCorrelationField): $($operatorCorrelationValue)"
         }

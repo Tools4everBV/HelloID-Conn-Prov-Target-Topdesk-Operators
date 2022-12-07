@@ -14,6 +14,7 @@ $WarningPreference = "Continue"
 $baseUrl = $c.baseUrl
 $username = $c.username
 $apiKey = $c.apikey
+$operatorArchivingReason = $c.operatorArchivingReason
 
 # Troubleshooting
 # $p.ExternalID = '12345678'
@@ -119,6 +120,9 @@ $account = [PSCustomObject]@{
     department       = @{ lookupValue = $p.PrimaryContract.Department.DisplayName }
     budgetholder     = @{ lookupValue = $p.PrimaryContract.CostCenter.Name }
     branch           = @{ lookupValue = $p.PrimaryContract.Location.Name } # or  'Fixed branch'
+
+    loginPermission  = $true
+    exchangeAccount  = $p.Accounts.MicrosoftActiveDirectory.Mail
 }
 
 #endregion mapping
@@ -437,7 +441,7 @@ try {
         # Search for account
         Write-Verbose "Searching for operator with $($operatorCorrelationField): $($operatorCorrelationValue)"
         $operatorUri = $baseUrl + "tas/api/operators"
-        $correlateUri = $operatorUri + "/?page_size=2&query=$($operatorCorrelationField)=='$($operatorCorrelationValue)';archived==false"
+        $correlateUri = $operatorUri + "/?page_size=2&query=$($operatorCorrelationField)=='$($operatorCorrelationValue)'"
         $correlateResponse = Invoke-RestMethod -uri $correlateUri -Method Get -Headers $headers -UseBasicParsing
     
         if ($correlateResponse.id.Count -gt 1) {
@@ -459,6 +463,48 @@ try {
 
             # Update account if so configured
             if ($updateOnCorrelate -eq $true) {
+                # register the original status of the operator, so we know what to do after the update
+                $originalStatus = $correlateResponse.status
+
+                # Search for archiving reason
+                if ([string]::IsNullOrEmpty($operatorArchivingReason)) {
+                    throw "No archiving reason configured. Please configure an archiving reason."
+                }
+
+                Write-Verbose "Searching for archiving reason: $($operatorArchivingReason)"
+                $archivingReasonUri = $baseUrl + "tas/api/archiving-reasons"
+                $archivingReasonResponse = Invoke-RestMethod -uri $archivingReasonUri -Method Get -Headers $headers -UseBasicParsing
+                $archivingReason = $archivingReasonResponse | Where-object { $_.name -eq $operatorArchivingReason }
+
+                if ([string]::IsNullOrEmpty($archivingReason.id) -eq $True) {
+                    Write-Information "Found archiving reasons: $($archivingReasonResponse.name -Join ';')"
+                    throw "Archiving Reason '$($operatorArchivingReason)' not found. Please configure a valid archiving reason."
+                }
+                else {
+                    Write-Verbose "Successfully found archiving reason $($archivingReason.name) ($($archivingReason.id))"
+                }
+
+                # Unarchive account (needed to update account)
+                if ($correlateResponse.status -eq "operatorArchived") {
+                    Write-Verbose "Unarchiving operator $($aRef.loginName) ($($aRef.id))"
+                    $unarchiveUri = $operatorUri + "/id/$($aRef.id)/unarchive"
+                    $updateResponse = Invoke-RestMethod -Method Patch -Uri $unarchiveUri -Headers $headers -Verbose:$false
+
+                    # Make sure to always have the latest data in $aRef (eventhough this shouldn't change)
+                    $aRef = @{
+                        loginName = $updateResponse.loginName
+                        id        = $updateResponse.id
+                    }
+
+                    $success = $true;
+                    $auditLogs.Add([PSCustomObject]@{
+                            Action  = "CreateAccount"
+                            Message = "Successfully unarchived account $($aRef.loginName) ($($aRef.id)) (needed to update account)";
+                            IsError = $false;
+                        }); 
+
+                }
+
                 Write-Verbose "Updating operator $($aRef.loginName) ($($aRef.id))"
 
                 $body = $account | ConvertTo-Json -Depth 10
@@ -477,6 +523,28 @@ try {
                         Message = "Successfully updated account $($aRef.loginName) ($($aRef.id))";
                         IsError = $false;
                     }); 
+
+                # Archive account (or re-archive if we had to unarchive to update)
+                if ($originalStatus -eq "operatorArchived" -and $updateResponse.status -eq "operator") {
+                    Write-Verbose "Archiving operator $($aRef.loginName) ($($aRef.id))"
+                    $body = @{ id = $archivingReason.id } | ConvertTo-Json -Depth 10
+                    $archiveUri = $operatorUri + "/id/$($aRef.id)/archive"
+                    $updateResponse = Invoke-RestMethod -Method Patch -Uri $archiveUri -Headers $headers -Body ([System.Text.Encoding]::UTF8.GetBytes($body)) -ContentType "application/json" -Verbose:$false
+
+                    # Make sure to always have the latest data in $aRef (eventhough this shouldn't change)
+                    $aRef = @{
+                        loginName = $updateResponse.loginName
+                        id        = $updateResponse.id
+                    }
+
+                    $success = $true;
+                    $auditLogs.Add([PSCustomObject]@{
+                            Action  = "CreateAccount"
+                            Message = "Successfully archived account $($aRef.loginName) ($($aRef.id))";
+                            IsError = $false;
+                        });
+
+                }
             }
         }
         elseif ($null -eq $correlateResponse.id) {
