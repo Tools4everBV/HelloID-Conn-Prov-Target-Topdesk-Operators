@@ -1,41 +1,108 @@
-$c = $configuration | ConvertFrom-Json
+###################################################################
+# HelloID-Conn-Prov-Target-Topdesk-Operators-Permissions-Retrieve
+#
+# Version: 2.0
+###################################################################
+
+# Initialize default values
+$config = $configuration | ConvertFrom-Json
+$take = 100
+$skip = 0
+$baseUrl = $config.baseUrl
+
+# Set debug logging
+switch ($($config.IsDebug)) {
+    $true  { $VerbosePreference = 'Continue' }
+    $false { $VerbosePreference = 'SilentlyContinue' }
+}
 
 # Set TLS to accept TLS, TLS 1.1 and TLS 1.2
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
 
-$VerbosePreference = "SilentlyContinue"
-$InformationPreference = "Continue"
-$WarningPreference = "Continue"
+function Set-AuthorizationHeaders {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $Username,
 
-# TOPdesk system data
-$baseUrl = $c.baseUrl
-$username = $c.username
-$apiKey = $c.apikey
-
-$take = 100;   
-$skip = 0;
-try {
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $ApiKey
+    )
     # Create basic authentication string
-    $bytes = [System.Text.Encoding]::ASCII.GetBytes("${username}:${apikey}")
+    $bytes = [System.Text.Encoding]::ASCII.GetBytes("${Username}:${Apikey}")
     $base64 = [System.Convert]::ToBase64String($bytes)
 
     # Set authentication headers
-    $headers = [System.Collections.Generic.Dictionary[string, string]]::new()
-    $headers.Add("Authorization", "BASIC $base64")
-    $headers.Add("Accept", 'application/json')
+    $authHeaders = [System.Collections.Generic.Dictionary[string, string]]::new()
+    $authHeaders.Add("Authorization", "BASIC $base64")
+    $authHeaders.Add("Accept", 'application/json')
 
-    # Make sure baseUrl ends with '/'
-    if ($baseUrl.EndsWith("/") -eq $false) {
-        $baseUrl = $baseUrl + "/"
+    Write-Output $authHeaders
+}
+
+function Invoke-TopdeskRestMethod {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $Method,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $Uri,
+
+        [object]
+        $Body,
+
+        [string]
+        $ContentType = 'application/json; charset=utf-8',
+
+        [Parameter(Mandatory)]
+        [System.Collections.IDictionary]
+        $Headers
+    )
+    process {
+        try {
+            $splatParams = @{
+                Uri         = $Uri
+                Headers     = $Headers
+                Method      = $Method
+                ContentType = $ContentType
+            }
+
+            if ($Body) {
+                $splatParams['Body'] = [Text.Encoding]::UTF8.GetBytes($Body)
+            }
+            Invoke-RestMethod @splatParams -Verbose:$false
+        } catch {
+            $PSCmdlet.ThrowTerminatingError($_)
+        }
     }
+}
+
+try {
+
+     # Setup authentication headers
+    $authHeaders = Set-AuthorizationHeaders -UserName $Config.username -ApiKey $Config.apiKey
 
     Write-Verbose "Searching for operator groups"
     $operatorGroups = [System.Collections.ArrayList]@();
     $paged = $true;
     while ($paged) {
-        # Define specific endpoint URI
-        $operatorGroupsUri = $baseUrl + "tas/api/operatorgroups/?start=$skip&page_size=$take"
-        $operatorGroupsResponse = Invoke-RestMethod -uri $operatorGroupsUri -Method Get -Headers $headers -UseBasicParsing
+
+        # Get operatorgroups
+        $splatParams = @{
+            Uri     = "$baseUrl/tas/api/operatorgroups/?start=$skip&page_size=$take"
+            Method  = 'GET'
+            Headers = $authHeaders
+        }
+        $operatorGroupsResponse = Invoke-TopdeskRestMethod @splatParams
 
         # Set $paged to false (to end loop) when response is less than take, indicating there are no more records to query
         if ($operatorGroupsResponse.id.count -lt $take) {

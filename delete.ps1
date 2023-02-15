@@ -1,175 +1,381 @@
-$c = $configuration | ConvertFrom-Json
+#####################################################
+# HelloID-Conn-Prov-Target-Topdesk-Operators-Delete
+#
+# Version: 2.0
+#####################################################
+
+# Initialize default values
+$config = $configuration | ConvertFrom-Json
 $p = $person | ConvertFrom-Json
-$aRef = $accountReference | ConvertFrom-Json;
 $success = $false
-$auditLogs = [Collections.Generic.List[PSCustomObject]]::new()
+$auditLogs = [System.Collections.Generic.List[PSCustomObject]]::new()
+$aRef = $AccountReference | ConvertFrom-Json
 
-# Set TLS to accept TLS, TLS 1.1 and TLS 1.2
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
+# Set debug logging
+switch ($($config.IsDebug)) {
+    $true  { $VerbosePreference = 'Continue' }
+    $false { $VerbosePreference = 'SilentlyContinue' }
+}
 
-$VerbosePreference = "SilentlyContinue"
-$InformationPreference = "Continue"
-$WarningPreference = "Continue"
+# Enable TLS1.2
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
-# TOPdesk system data
-$baseUrl = $c.baseUrl
-$username = $c.username
-$apiKey = $c.apikey
-$operatorArchivingReason = $c.operatorArchivingReason
-
-# Troubleshooting
-# $aRef = @{
-#     loginName = "j.doe"
-#     id = "a1b2345c-89dd-47a5-8de3-6de7df89g012"
-# }
-# $dryRun = $false
-
-#correlation
-$operatorCorrelationField = 'id'
-$operatorCorrelationValue = $aRef.id
-
-# Change mapping here
+#region mapping
 # Clear email, networkLoginName & loginName, if you need to clear other values, add these here
 $account = [PSCustomObject]@{
     email            = $null
     networkLoginName = $null
     loginName        = $null
 }
+#endregion mapping
 
-# Update user
-try {
-    if (-Not($dryRun -eq $True)) {
-        # Create basic authentication string
-        $bytes = [System.Text.Encoding]::ASCII.GetBytes("${username}:${apikey}")
-        $base64 = [System.Convert]::ToBase64String($bytes)
+#region helperfunctions
+function Set-AuthorizationHeaders {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $Username,
 
-        # Set authentication headers
-        $headers = [System.Collections.Generic.Dictionary[string, string]]::new()
-        $headers.Add("Authorization", "BASIC $base64")
-        $headers.Add("Accept", 'application/json')
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $ApiKey
+    )
+    # Create basic authentication string
+    $bytes = [System.Text.Encoding]::ASCII.GetBytes("${Username}:${Apikey}")
+    $base64 = [System.Convert]::ToBase64String($bytes)
 
-        # Make sure baseUrl ends with '/'
-        if ($baseUrl.EndsWith("/") -eq $false) {
-            $baseUrl = $baseUrl + "/"
-        }
+    # Set authentication headers
+    $authHeaders = [System.Collections.Generic.Dictionary[string, string]]::new()
+    $authHeaders.Add("Authorization", "BASIC $base64")
+    $authHeaders.Add("Accept", 'application/json')
 
-        # Search for archiving reason
-        if ([string]::IsNullOrEmpty($operatorArchivingReason)) {
-            throw "No archiving reason configured. Please configure an archiving reason."
-        }
+    Write-Output $authHeaders
+}
 
-        Write-Verbose "Searching for archiving reason: $($operatorArchivingReason)"
-        $archivingReasonUri = $baseUrl + "tas/api/archiving-reasons"
-        $archivingReasonResponse = Invoke-RestMethod -uri $archivingReasonUri -Method Get -Headers $headers -UseBasicParsing
-        $archivingReason = $archivingReasonResponse | Where-object { $_.name -eq $operatorArchivingReason }
 
-        if ([string]::IsNullOrEmpty($archivingReason.id) -eq $True) {
-            Write-Information "Found archiving reasons: $($archivingReasonResponse.name -Join ';')"
-            throw "Archiving Reason '$($operatorArchivingReason)' not found. Please configure a valid archiving reason."
-        }
-        else {
-            Write-Verbose "Successfully found archiving reason $($archivingReason.name) ($($archivingReason.id))"
-        }
+function Invoke-TopdeskRestMethod {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $Method,
 
-        # Define specific endpoint URI
-        if ($baseUrl.EndsWith("/") -eq $false) {
-            $baseUrl = $baseUrl + "/"
-        }
-        $operatorUri = $baseUrl + "tas/api/operators"
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $Uri,
 
-        # Search for account
-        Write-Verbose "Searching for operator with $($operatorCorrelationField): $($operatorCorrelationValue)"
-        $correlateUri = $operatorUri + "/?page_size=2&query=$($operatorCorrelationField)=='$($operatorCorrelationValue)'"
-        $correlateResponse = Invoke-RestMethod -uri $correlateUri -Method Get -Headers $headers -UseBasicParsing
+        [object]
+        $Body,
 
-        if ($null -eq $correlateResponse.id) {
-            throw "No operator found in TOPdesk with $($operatorCorrelationField): $($operatorCorrelationValue)"
-        }
-        elseif ($correlateResponse.id.Count -gt 1) {
-            throw "Multiple operators found in TOPdesk with $($operatorCorrelationField): $($operatorCorrelationValue). Please correct this so the $($operatorCorrelationField) is unique."
-        }
-        elseif ($correlateResponse.id.Count -eq 1) {
-            # Unarchive account (needed to update account)
-            if ($correlateResponse.status -eq "operatorArchived") {
-                Write-Verbose "Unarchiving operator $($aRef.loginName) ($($aRef.id))"
-                $unarchiveUri = $operatorUri + "/id/$($aRef.id)/unarchive"
-                $updateResponse = Invoke-RestMethod -Method Patch -Uri $unarchiveUri -Headers $headers -Verbose:$false
+        [string]
+        $ContentType = 'application/json; charset=utf-8',
 
-                # Make sure to always have the latest data in $aRef (eventhough this shouldn't change)
-                $aRef = @{
-                    loginName = $updateResponse.loginName
-                    id        = $updateResponse.id
-                }
-
-                $success = $true;
-                $auditLogs.Add([PSCustomObject]@{
-                        Action  = "DeleteAccount"
-                        Message = "Successfully unarchived account $($aRef.loginName) ($($aRef.id)) (needed to update account and clear fields)";
-                        IsError = $false;
-                    }); 
-
+        [Parameter(Mandatory)]
+        [System.Collections.IDictionary]
+        $Headers
+    )
+    process {
+        try {
+            $splatParams = @{
+                Uri         = $Uri
+                Headers     = $Headers
+                Method      = $Method
+                ContentType = $ContentType
             }
 
-            # Update account
-            Write-Verbose "Clearing fields of operator $($aRef.loginName) ($($aRef.id))"
-
-            $body = $account | ConvertTo-Json -Depth 10
-            $updateUri = $operatorUri + "/id/$($aRef.id)"
-            $updateResponse = Invoke-RestMethod -Method Patch -Uri $updateUri -Headers $headers -Body ([System.Text.Encoding]::UTF8.GetBytes($body)) -ContentType "application/json" -Verbose:$false
-
-            # Make sure to always have the latest data in $aRef (eventhough this shouldn't change)
-            $aRef = @{
-                loginName = $updateResponse.loginName
-                id        = $updateResponse.id
+            if ($Body) {
+                $splatParams['Body'] = [Text.Encoding]::UTF8.GetBytes($Body)
             }
-            
-            $success = $true;
-            $auditLogs.Add([PSCustomObject]@{
-                    Action  = "DeleteAccount"
-                    Message = "Successfully cleared fields of account $($aRef.loginName) ($($aRef.id))";
-                    IsError = $false;
-                }); 
-
-
-            # Archive account (or re-archive if we had to unarchive to update)
-            if ($updateResponse.status -eq "operator") {
-                Write-Verbose "Archiving operator $($aRef.loginName) ($($aRef.id))"
-                $body = @{ id = $archivingReason.id } | ConvertTo-Json -Depth 10
-                $archiveUri = $operatorUri + "/id/$($aRef.id)/archive"
-                $updateResponse = Invoke-RestMethod -Method Patch -Uri $archiveUri -Headers $headers -Body ([System.Text.Encoding]::UTF8.GetBytes($body)) -ContentType "application/json" -Verbose:$false
-
-                # Make sure to always have the latest data in $aRef (eventhough this shouldn't change)
-                $aRef = @{
-                    loginName = $updateResponse.loginName
-                    id        = $updateResponse.id
-                }
-
-                $success = $true;
-                $auditLogs.Add([PSCustomObject]@{
-                        Action  = "DeleteAccount"
-                        Message = "Successfully archived account $($aRef.loginName) ($($aRef.id))";
-                        IsError = $false;
-                    });
-
-            }
+            Invoke-RestMethod @splatParams -Verbose:$false
+        } catch {
+            $PSCmdlet.ThrowTerminatingError($_)
         }
     }
 }
-catch {
+
+function Get-TopdeskOperator {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $BaseUrl,
+
+        [Parameter(Mandatory)]
+        [System.Collections.IDictionary]
+        $Headers,
+
+        [Parameter(Mandatory)]
+        [String]
+        $AccountReference,
+
+        [System.Collections.Generic.List[PSCustomObject]]
+        [ref]$AuditLogs
+    )
+
+    # Check if the account reference is empty, if so, generate audit message
+    if ([string]::IsNullOrEmpty($AccountReference)) {
+
+        # Throw an error when account reference is empty
+        $errorMessage = "The account reference is empty. This is a scripting issue."
+        $AuditLogs.Add([PSCustomObject]@{
+            Message = $errorMessage
+            IsError = $true
+        })
+        return
+    }
+
+    # Lookup value is filled in, lookup operator in Topdesk
+    $splatParams = @{
+        Uri     = "$baseUrl/tas/api/operators/id/$AccountReference"
+        Method  = 'GET'
+        Headers = $Headers
+    }
+    $operator = Invoke-TopdeskRestMethod @splatParams
+
+    # Check if only one result is returned
+    if ([string]::IsNullOrEmpty($operator)) {
+        $errorMessage = "Operator with reference [$AccountReference)] is not found. If the operator is deleted, you might need to regrant the entitlement."
+        $AuditLogs.Add([PSCustomObject]@{
+            Message = $errorMessage
+            IsError = $true
+        })
+    } else {
+        Write-Output $operator
+    }
+}
+
+function Set-TopdeskOperatorArchiveStatus {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $BaseUrl,
+
+        [Parameter(Mandatory)]
+        [System.Collections.IDictionary]
+        $Headers,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [Object]
+        [Ref]$TopdeskOperator,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [Bool]
+        $Archive,
+
+        [Parameter()]
+        [String]
+        $ArchivingReason,
+
+        [System.Collections.Generic.List[PSCustomObject]]
+        [ref]$AuditLogs
+    )
+
+    # Set ArchiveStatus variables based on archive parameter
+    if ($Archive -eq $true) {
+
+         #When the 'archiving reason' setting is not configured in the target connector configuration
+        if ([string]::IsNullOrEmpty($ArchivingReason)) {
+            $errorMessage = "Configuration setting 'Archiving Reason' is empty. This is a configuration error."
+            $AuditLogs.Add([PSCustomObject]@{
+                Message = $errorMessage
+                IsError = $true
+            })
+            Throw "Error(s) occured while looking up required values"
+        }
+
+        $splatParams = @{
+            Uri     = "$baseUrl/tas/api/archiving-reasons"
+            Method  = 'GET'
+            Headers = $Headers
+        }
+
+        $responseGet = Invoke-TopdeskRestMethod @splatParams
+        $archivingReasonObject = $responseGet | Where-object name -eq $ArchivingReason
+
+        #When the configured archiving reason is not found in Topdesk
+        if ([string]::IsNullOrEmpty($archivingReasonObject.id)) {
+            $errorMessage = "Archiving reason [$ArchivingReason] not found in Topdesk"
+            $AuditLogs.Add([PSCustomObject]@{
+                Message = $errorMessage
+                IsError = $true
+            })
+            Throw "Error(s) occured while looking up required values"
+        }
+
+        $archiveStatus = 'operatorArchived'
+        $archiveUri = 'archive'
+        $body = @{ id = $archivingReasonObject.id }
+    } else {
+        $archiveStatus = 'operator'
+        $archiveUri = 'unarchive'
+        $body = $null
+    }
+
+    # Check the current status of the Person and compare it with the status in archiveStatus
+    if ($archiveStatus -ne $TopdeskOperator.status) {
+
+        # Archive / unarchive person
+        Write-Verbose "[$archiveUri] person with id [$($TopdeskOperator.id)]"
+        $splatParams = @{
+            Uri     = "$BaseUrl/tas/api/operators/id/$($TopdeskOperator.id)/$archiveUri"
+            Method  = 'PATCH'
+            Headers = $Headers
+            Body    = $body | ConvertTo-Json
+        }
+        $null = Invoke-TopdeskRestMethod @splatParams
+        $TopdeskOperator.status = $archiveStatus
+    }
+}
+
+function Set-TopdeskOperator {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $BaseUrl,
+
+        [Parameter(Mandatory)]
+        [System.Collections.IDictionary]
+        $Headers,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [Object]
+        $Account,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [Object]
+        $TopdeskOperator
+    )
+
+    Write-Verbose "Updating operator"
+    $splatParams = @{
+        Uri     = "$BaseUrl/tas/api/operators/id/$($TopdeskOperator.id)"
+        Method  = 'PATCH'
+        Headers = $Headers
+        Body    = $Account | ConvertTo-Json
+    }
+    $null = Invoke-TopdeskRestMethod @splatParams
+}
+#endregion helperfunctions
+
+#region lookup
+try {
+    $action = 'Process'
+
+    # Setup authentication headers
+    $authHeaders = Set-AuthorizationHeaders -UserName $Config.username -ApiKey $Config.apiKey
+
+    # get operator
+    $splatParamsOperator = @{
+        AccountReference          = $aRef
+        AuditLogs                 = [ref]$auditLogs
+        Headers                   = $authHeaders
+        BaseUrl                   = $config.baseUrl
+    }
+    $TopdeskOperator = Get-TopdeskOperator @splatParamsOperator 
+
+    if ($auditLogs.isError -contains -$true) {
+        Throw "Error(s) occured while looking up required values"
+    }
+    
+#endregion lookup
+
+    # Add an auditMessage showing what will happen during enforcement
+    if ($dryRun -eq $true) {
+        $auditLogs.Add([PSCustomObject]@{
+            Message = "Archiving TOPdesk person for: [$($p.DisplayName)], will be executed during enforcement"
+        })
+    }
+    
+    # region write
+    $action = 'Archive'
+
+    # Process
+    if (-not($dryRun -eq $true)){
+        Write-Verbose "Archiving Topdesk operator for: [$($p.DisplayName)]"
+
+        # Unarchive operator if required
+        if ($TopdeskOperator.status -eq 'operatorArchived') {
+
+            # Unarchive operator
+            $splatParamsOperatorUnarchive = @{
+                TopdeskOperator = [ref]$TopdeskOperator
+                Headers         = $authHeaders
+                BaseUrl         = $config.baseUrl
+                Archive         = $false
+                ArchivingReason = $config.operatorArchivingReason
+                AuditLogs        = [ref]$auditLogs
+            }
+            Set-TopdeskOperatorArchiveStatus @splatParamsOperatorUnarchive
+        }
+
+        # Update TOPdesk operator
+        $splatParamsOperatorUpdate = @{
+            TopdeskOperator = $TopdeskOperator
+            Account         = $account
+            Headers         = $authHeaders
+            BaseUrl         = $config.baseUrl
+        }
+        Set-TopdeskOperator @splatParamsOperatorUpdate
+
+        # Always archive operator in the delete process
+        if ($TopdeskOperator.status -ne 'operatorArchived') {
+
+            # Archive operator
+            $splatParamsOperatorArchive = @{
+                TopdeskOperator = [ref]$TopdeskOperator
+                Headers         = $authHeaders
+                BaseUrl         = $config.baseUrl
+                Archive         = $true
+                ArchivingReason = $config.operatorArchivingReason
+                AuditLogs       = [ref]$auditLogs
+            }
+            Set-TopdeskOperatorArchiveStatus @splatParamsOperatorArchive
+        }
+
+        $success = $true
+        $auditLogs.Add([PSCustomObject]@{
+            Message = "Archive operator was successful."
+            IsError = $false
+        })
+    }
+} catch {
+    $success = $false
+    $ex = $PSItem
+    Write-Verbose ($ex | ConvertTo-Json)
+    if ($($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or
+        $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
+        if (-Not [string]::IsNullOrEmpty($ex.ErrorDetails.Message)) {
+            $errorMessage = "Could not $action operator. Error: $($ex.ErrorDetails.Message)"
+        } else {
+            #$errorObj = Resolve-HTTPError -ErrorObject $ex
+            $errorMessage = "Could not $action operator. Error: $($ex.Exception.Message)"
+        }
+    } else {
+        $errorMessage = "Could not archive operator. Error: $($ex.Exception.Message) $($ex.ScriptStackTrace)"
+    }
+
     $auditLogs.Add([PSCustomObject]@{
-            Action  = "DeleteAccount"
-            Message = "Error clearing fields of account $($account.loginName): $($_)"
-            IsError = $True
-        });
-    Write-Warning $_;
+        Message = $errorMessage
+        IsError = $true
+    })
+} finally {
+    $result = [PSCustomObject]@{
+        Success   = $success
+        Auditlogs = $auditLogs
+    }
+    Write-Output $result | ConvertTo-Json -Depth 10
 }
-
-# Send results
-$result = [PSCustomObject]@{
-    Success          = $success
-    AccountReference = $aRef
-    AuditLogs        = $auditLogs
-    Account          = $account
-}
-
-Write-Output $result | ConvertTo-Json -Depth 10

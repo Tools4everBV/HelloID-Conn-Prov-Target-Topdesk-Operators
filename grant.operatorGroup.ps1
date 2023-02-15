@@ -1,61 +1,116 @@
-#region Initialize default properties
-$c = $configuration | ConvertFrom-Json
-$p = $person | ConvertFrom-Json;
-$m = $manager | ConvertFrom-Json;
-$aRef = $accountReference | ConvertFrom-Json;
-$mRef = $managerAccountReference | ConvertFrom-Json;
+###################################################################
+# HelloID-Conn-Prov-Target-Topdesk-Operators-Permissions-Grant
+#
+# Version: 2.0
+###################################################################
+
+# Initialize default values
+$config = $configuration | ConvertFrom-Json
+$aRef = $accountReference | ConvertFrom-Json
+$auditLogs = [Collections.Generic.List[PSCustomObject]]::new()
+$success = $True
+$baseUrl = $config.baseUrl
 
 # The permissionReference object contains the Identification object provided in the retrieve permissions call
 $pRef = $permissionReference | ConvertFrom-Json;
 
-$success = $True
-$auditLogs = [Collections.Generic.List[PSCustomObject]]::new()
+# Set debug logging
+switch ($($config.IsDebug)) {
+    $true  { $VerbosePreference = 'Continue' }
+    $false { $VerbosePreference = 'SilentlyContinue' }
+}
 
 # Set TLS to accept TLS, TLS 1.1 and TLS 1.2
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
 
-$VerbosePreference = "SilentlyContinue"
-$InformationPreference = "Continue"
-$WarningPreference = "Continue"
+function Set-AuthorizationHeaders {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $Username,
 
-# Troubleshooting
-# $aRef = @{
-#     loginName = "j.doe"
-#     id = "a1b2345c-89dd-47a5-8de3-6de7df89g012"
-# }
-# $dryRun = $false
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $ApiKey
+    )
+    # Create basic authentication string
+    $bytes = [System.Text.Encoding]::ASCII.GetBytes("${Username}:${Apikey}")
+    $base64 = [System.Convert]::ToBase64String($bytes)
 
-# TOPdesk system data
-$baseUrl = $c.baseUrl
-$username = $c.username
-$apiKey = $c.apikey
+    # Set authentication headers
+    $authHeaders = [System.Collections.Generic.Dictionary[string, string]]::new()
+    $authHeaders.Add("Authorization", "BASIC $base64")
+    $authHeaders.Add("Accept", 'application/json')
+
+    Write-Output $authHeaders
+}
+
+function Invoke-TopdeskRestMethod {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $Method,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $Uri,
+
+        [object]
+        $Body,
+
+        [string]
+        $ContentType = 'application/json; charset=utf-8',
+
+        [Parameter(Mandatory)]
+        [System.Collections.IDictionary]
+        $Headers
+    )
+    process {
+        try {
+            $splatParams = @{
+                Uri         = $Uri
+                Headers     = $Headers
+                Method      = $Method
+                ContentType = $ContentType
+            }
+
+            if ($Body) {
+                $splatParams['Body'] = [Text.Encoding]::UTF8.GetBytes($Body)
+            }
+            Invoke-RestMethod @splatParams -Verbose:$false
+        } catch {
+            $PSCmdlet.ThrowTerminatingError($_)
+        }
+    }
+}
 
 try {
     if ($dryRun -eq $false) {
-        # Create basic authentication string
-        $bytes = [System.Text.Encoding]::ASCII.GetBytes("${username}:${apikey}")
-        $base64 = [System.Convert]::ToBase64String($bytes)
+     # Setup authentication headers
+        $authHeaders = Set-AuthorizationHeaders -UserName $Config.username -ApiKey $Config.apiKey
 
-        # Set authentication headers
-        $headers = [System.Collections.Generic.Dictionary[string, string]]::new()
-        $headers.Add("Authorization", "BASIC $base64")
-        $headers.Add("Accept", 'application/json')
-
-        # Make sure baseUrl ends with '/'
-        if ($baseUrl.EndsWith("/") -eq $false) {
-            $baseUrl = $baseUrl + "/"
+        Write-Verbose -verbose "Granting permission $($pRef.Name) ($($pRef.id)) to ($($aRef))"
+        $splatParams = @{
+            Uri     = "$BaseUrl/tas/api/operators/id/$($aRef)/operatorgroups"
+            Method  = 'Post'
+            Headers = $authHeaders
+            Body    = ConvertTo-Json -InputObject @(@{ id = $($pRef.id) }) -Depth 10
         }
+        $null = Invoke-TopdeskRestMethod @splatParams
+        
+        Write-Verbose "Successfully granted Permission $($pRef.Name) ($($pRef.id)) to ($($aRef))"
 
-        Write-Verbose "Granting permission $($pRef.Name) ($($pRef.id)) to $($aRef.loginName) ($($aRef.id))"
-        $body = ConvertTo-Json -InputObject @(@{ id = $($pRef.id) }) -Depth 10
-        $operatorGroupMembershipUri = $baseUrl + "tas/api/operators/id/$($aRef.id)/operatorgroups"
-        $addOperatorGroupMembershipResponse = Invoke-RestMethod -Method Post -Uri $operatorGroupMembershipUri -Headers $headers -Body ([System.Text.Encoding]::UTF8.GetBytes($body)) -ContentType "application/json" -Verbose:$false
-        Write-Verbose "Successfully granted Permission $($pRef.Name) ($($pRef.id)) to $($aRef.loginName) ($($aRef.id))"
 
         $success = $true
         $auditLogs.Add([PSCustomObject]@{
                 Action  = "GrantPermission"
-                Message = "Successfully granted Permission $($pRef.Name) ($($pRef.id)) to $($aRef.loginName) ($($aRef.id))"
+                Message = "Successfully granted Permission $($pRef.Name) ($($pRef.id)) to ($($aRef))"
                 IsError = $false
             })
     }

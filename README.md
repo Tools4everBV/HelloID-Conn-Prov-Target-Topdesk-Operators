@@ -1,7 +1,5 @@
 # HelloID-Conn-Prov-Target-Topdesk-Operators
 
-# HelloID-Conn-Prov-Target-Topdesk
-
 | :warning: Warning |
 |:-|
 | This connector has been updated to a new version (V2), not officaly released. This version is not backward compatible, but a Tools4ever consultant or a partner can upgrade the connector with minor effort. If you have questions please ask them on our (new forum post needed for operator connector?) [forum](https://forum.helloid.com/forum/helloid-connectors/provisioning/1266-helloid-conn-prov-target-topdesk). |
@@ -25,6 +23,7 @@
   + [Remove attributes when correlating a Topdesk person](#Remove-attributes-when-correlating-a-Topdesk-person)
   + [Disable department or budgetholder](#Disable-department-or-budgetholder)
   + [Extra fields](#Extra-fields)
+- [Remarks](#Remarks)
 - [Getting help](#Getting-help)
 - [HelloID Docs](#HelloID-docs)
 
@@ -55,6 +54,20 @@ The following settings are required to connect to the API.
 
 ### Permissions
 [HelloID-Conn-Prov-Target-Topdesk](https://github.com/Tools4everBV/HelloID-Conn-Prov-Target-Topdesk).
+
+TOPdesk operator account with permissions as in the table below:
+
+| Permission                | Read  | Write | Create    | Delete    | Archive   |
+| ------------------------- | ----- | ----- | --------- | --------- | --------- |
+| __Supporting Files__      |
+| Persons                   | __X__ |       |           |           |           |
+| Operators                 | __X__ | __X__ | __X__     |           | __X__     |
+| Operator groups           | __X__ | __X__ | __X__     |           |           |
+| Permission groups         | __X__ |       |           |           |           |
+| Login data                |       | __X__ |           |           |           |
+| __API access__            |
+| REST API                  | __X__ |       |           |           |           |
+| Use application passwords |       | __X__ |           |           |           |
 
 #### Filters
 | :information_source: Information |
@@ -131,6 +144,8 @@ $account = [PSCustomObject]@{
     mobileNumber        = $p.Contact.Business.Phone.Mobile
 }
 ```
+### Remarks
+ - Currently, we only support managing operator groups (no permission groups etc.).
 
 ## Getting help
 
@@ -180,30 +195,3 @@ The following settings are required to connect to the API.
 | When an item can't be found in TOPdesk  | What to do when the mapping is provided (from source data) but no matching item in TOPdesk can be found. Choose to either: <ul><li>generate an error and stop processing</li><li>or do not set/update field in TOPdesk</li></ul>   | Yes         |
 | When a department is empty because it's missing in the source data  | What to do when the department is mising in the mapping beause it is missing in source data. Choose to either: <ul><li>generate an error and stop processing</li><li>or do not set/update the department field in TOPdesk</li></ul> | Yes         |
 | When a budgetholder is empty because it's missing in the source data  | What to do when the department is mising in the mapping beause it is missing in source data. Choose to either: <ul><li> generate an error and stop processing</li><li>or do not set/update the budgetholder field in TOPdesk</li></ul>  | Yes         |
-
-### Prerequisites
-- TOPdesk environment of at least version 7.11.005
-- TOPdesk operator account with permissions as in the table below:
-
-| Permission                | Read  | Write | Create    | Delete    | Archive   |
-| ------------------------- | ----- | ----- | --------- | --------- | --------- |
-| __Supporting Files__      |
-| Persons                   | __X__ |       |           |           |           |
-| Operators                 | __X__ | __X__ | __X__     |           | __X__     |
-| Operator groups           | __X__ | __X__ | __X__     |           |           |
-| Permission groups         | __X__ |       |           |           |           |
-| Login data                |       | __X__ |           |           |           |
-| __API access__            |
-| REST API                  | __X__ |       |           |           |           |
-| Use application passwords |       | __X__ |           |           |           |
-
-### Remarks
- - Currently, we only support managing operator groups (no permission groups etc.).
-
-## Getting help
-> _For more information on how to configure a HelloID PowerShell connector, please refer to our [documentation](https://docs.helloid.com/hc/en-us/articles/360012558020-Configure-a-custom-PowerShell-target-system) pages_
-
-> _If you need help, feel free to ask questions on our [forum](https://forum.helloid.com)_
-
-## HelloID docs
-The official HelloID documentation can be found at: https://docs.helloid.com/
