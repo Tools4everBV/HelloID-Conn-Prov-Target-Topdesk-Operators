@@ -23,6 +23,8 @@ switch ($($config.IsDebug)) {
 # Set TLS to accept TLS, TLS 1.1 and TLS 1.2
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
 
+# region helperfunctions
+
 function Set-AuthorizationHeaders {
     [CmdletBinding()]
     param (
@@ -90,10 +92,175 @@ function Invoke-TopdeskRestMethod {
     }
 }
 
+function Get-TopdeskOperator {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $BaseUrl,
+
+        [Parameter(Mandatory)]
+        [System.Collections.IDictionary]
+        $Headers,
+
+        [Parameter(Mandatory)]
+        [String]
+        $AccountReference,
+
+        [System.Collections.Generic.List[PSCustomObject]]
+        [ref]$AuditLogs
+    )
+
+    # Check if the account reference is empty, if so, generate audit message
+    if ([string]::IsNullOrEmpty($AccountReference)) {
+
+        # Throw an error when account reference is empty
+        $errorMessage = "The account reference is empty. This is a scripting issue."
+        $AuditLogs.Add([PSCustomObject]@{
+            Message = $errorMessage
+            IsError = $true
+        })
+        return
+    }
+
+    # Lookup value is filled in, lookup operator in Topdesk
+    $splatParams = @{
+        Uri     = "$baseUrl/tas/api/operators/id/$AccountReference"
+        Method  = 'GET'
+        Headers = $Headers
+    }
+    $operator = Invoke-TopdeskRestMethod @splatParams
+
+    # Check if only one result is returned
+    if ([string]::IsNullOrEmpty($operator)) {
+        $errorMessage = "Operator with reference [$AccountReference)] is not found. If the operator is deleted, you might need to regrant the entitlement."
+        $AuditLogs.Add([PSCustomObject]@{
+            Message = $errorMessage
+            IsError = $true
+        })
+    } else {
+        Write-Output $operator
+    }
+}
+
+function Set-TopdeskOperatorArchiveStatus {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $BaseUrl,
+
+        [Parameter(Mandatory)]
+        [System.Collections.IDictionary]
+        $Headers,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [Object]
+        [Ref]$TopdeskOperator,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [Bool]
+        $Archive,
+
+        [Parameter()]
+        [String]
+        $ArchivingReason,
+
+        [System.Collections.Generic.List[PSCustomObject]]
+        [ref]$AuditLogs
+    )
+
+    # Set ArchiveStatus variables based on archive parameter
+    if ($Archive -eq $true) {
+
+         #When the 'archiving reason' setting is not configured in the target connector configuration
+        if ([string]::IsNullOrEmpty($ArchivingReason)) {
+            $errorMessage = "Configuration setting 'Archiving Reason' is empty. This is a configuration error."
+            $AuditLogs.Add([PSCustomObject]@{
+                Message = $errorMessage
+                IsError = $true
+            })
+            Throw "Error(s) occured while looking up required values"
+        }
+
+        $splatParams = @{
+            Uri     = "$baseUrl/tas/api/archiving-reasons"
+            Method  = 'GET'
+            Headers = $Headers
+        }
+
+        $responseGet = Invoke-TopdeskRestMethod @splatParams
+        $archivingReasonObject = $responseGet | Where-object name -eq $ArchivingReason
+
+        #When the configured archiving reason is not found in Topdesk
+        if ([string]::IsNullOrEmpty($archivingReasonObject.id)) {
+            $errorMessage = "Archiving reason [$ArchivingReason] not found in Topdesk"
+            $AuditLogs.Add([PSCustomObject]@{
+                Message = $errorMessage
+                IsError = $true
+            })
+            Throw "Error(s) occured while looking up required values"
+        }
+
+        $archiveStatus = 'operatorArchived'
+        $archiveUri = 'archive'
+        $body = @{ id = $archivingReasonObject.id }
+    } else {
+        $archiveStatus = 'operator'
+        $archiveUri = 'unarchive'
+        $body = $null
+    }
+
+    # Check the current status of the Person and compare it with the status in archiveStatus
+    if ($archiveStatus -ne $TopdeskOperator.status) {
+
+        # Archive / unarchive person
+        Write-Verbose "[$archiveUri] person with id [$($TopdeskOperator.id)]"
+        $splatParams = @{
+            Uri     = "$BaseUrl/tas/api/operators/id/$($TopdeskOperator.id)/$archiveUri"
+            Method  = 'PATCH'
+            Headers = $Headers
+            Body    = $body | ConvertTo-Json
+        }
+        $null = Invoke-TopdeskRestMethod @splatParams
+        $TopdeskOperator.status = $archiveStatus
+    }
+}
+
+# end region helperfunctions
+
 try {
     if ($dryRun -eq $false) {
         # Setup authentication headers
         $authHeaders = Set-AuthorizationHeaders -UserName $Config.username -ApiKey $Config.apiKey
+
+        # get operator
+        $splatParamsOperator = @{
+            AccountReference          = $aRef
+            AuditLogs                 = [ref]$auditLogs
+            Headers                   = $authHeaders
+            BaseUrl                   = $config.baseUrl
+        }
+        $TopdeskOperator = Get-TopdeskOperator @splatParamsOperator 
+
+        if ($TopdeskOperator.status -eq 'operatorArchived') {
+
+            # Unarchive operator
+            $shouldArchive  = $true
+            $splatParamsOperatorUnarchive = @{
+                TopdeskOperator = [ref]$TopdeskOperator
+                Headers         = $authHeaders
+                BaseUrl         = $config.baseUrl
+                Archive         = $false
+                ArchivingReason = $config.operatorArchivingReason
+                AuditLogs       = [ref]$auditLogs
+            }
+            Set-TopdeskOperatorArchiveStatus @splatParamsOperatorUnarchive
+        }
 
         Write-Verbose -verbose "Revoking permission $($pRef.Name) ($($pRef.id)) from ($($aRef))"
         $splatParams = @{
@@ -104,6 +271,21 @@ try {
         }
         $null = Invoke-TopdeskRestMethod @splatParams
         
+        # As the update process could be started for an inactive HelloID operator, the user return should be archived state
+        if ($shouldArchive) {
+
+            # Archive operator
+            $splatParamsOperatorArchive = @{
+                TopdeskOperator = [ref]$TopdeskOperator
+                Headers         = $authHeaders
+                BaseUrl         = $config.baseUrl
+                Archive         = $true
+                ArchivingReason = $config.operatorArchivingReason
+                AuditLogs       = [ref]$auditLogs
+            }
+            Set-TopdeskOperatorArchiveStatus @splatParamsOperatorArchive
+        }
+
         Write-Verbose "Successfully revoked Permission $($pRef.Name) ($($pRef.id)) from ($($aRef))"
 
         $success = $true

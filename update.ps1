@@ -693,7 +693,7 @@ try {
                     BaseUrl         = $config.baseUrl
                     Archive         = $false
                     ArchivingReason = $config.operatorArchivingReason
-                    AuditLogs        = [ref]$auditLogs
+                    AuditLogs       = [ref]$auditLogs
                 }
                 Set-TopdeskOperatorArchiveStatus @splatParamsOperatorUnarchive
             }
