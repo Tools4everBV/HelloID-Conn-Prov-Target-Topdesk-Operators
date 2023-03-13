@@ -19,11 +19,14 @@
   + [Prerequisites](#Prerequisites)
   + [Connection settings](#Connection-settings)
   + [Permissions](#Permissions)
+  + [Filters](#Filters)
 - [Setup the connector](#Setup-The-Connector)
   + [Remove attributes when correlating a Topdesk person](#Remove-attributes-when-correlating-a-Topdesk-person)
   + [Disable department or budgetholder](#Disable-department-or-budgetholder)
   + [Extra fields](#Extra-fields)
 - [Remarks](#Remarks)
+  + [Managing operator groups](#Managing-operator-groups)
+  + [Use Topdesk person as input](#Use-Topdesk-person-as-input)
 - [Getting help](#Getting-help)
 - [HelloID Docs](#HelloID-docs)
 
@@ -144,8 +147,12 @@ $account = [PSCustomObject]@{
     mobileNumber        = $p.Contact.Business.Phone.Mobile
 }
 ```
-### Remarks
- - Currently, we only support managing operator groups (no permission groups etc.).
+## Remarks
+### Managing operator groups
+Currently, we only support managing operator groups (no permission groups etc.).
+
+### Use Topdesk person as input
+Use create.personData.ps1 and update.personData.ps1 if you want to use a Topdesk person as input to create or update Topdesk operators.
 
 ## Getting help
 
@@ -156,42 +163,3 @@ $account = [PSCustomObject]@{
 ## HelloID docs
 
 > The official HelloID documentation can be found at: https://docs.helloid.com/
-
-
-| :information_source: Information |
-|:---------------------------|
-| This repository contains the connector and configuration code only. The implementer is responsible to acquire the connection details such as username, password, certificate, etc. You might even need to sign a contract or agreement with the supplier before implementing this connector. Please contact the client's application manager to coordinate the connector requirements. |
-
-
-
-## Introduction
-_HelloID-Conn-Prov-Target-Topdesk-Operators is a _target_ connector. TOPdesk provides a set of REST API's that allow you to programmatically interact with it's data. The HelloID connector allows you to create and manage TOPdesk operators. Using entitlements it is possible to add operators to operator groups.
-The HelloID connector consists of the template scripts shown in the following table.
-
-| Action                          | Action(s) Performed                           | Comment   | 
-| ------------------------------- | --------------------------------------------- | --------- |
-| Create.ps1                      | Correlate or create TOPdesk operator          | This script uses the HR source data as input for the operator.<br> When no TOPdesk branch is found, the script will result in an error. So when using this script, __mapping the branch & having the TOPdesk branches match the source input is required__. |
-| Create.personData.ps1           | Correlate or create TOPdesk operator          | This script uses the TOPdesk person data as input for the operator. When no TOPdesk person is found, the script will result in an error. So when using this script, a __TOPdesk person is required__. |
-| Update.ps1                      | Update TOPdesk operator                       | This script uses the HR source data as input for the operator.<br> When no TOPdesk branch is found, the script will result in an error. So when using this script, __mapping the branch & having the TOPdesk branches match the source input is required__. |
-| Update.personData.ps1           | Update TOPdesk operator                       | This script uses the TOPdesk person data as input for the operator. When no TOPdesk person is found, the script will result in an error. So when using this script, a __TOPdesk person is required__. |
-| Enable.ps1                      | Unarchive TOPdesk operator                    |           |
-| Disable.ps1                     | Archive TOPdesk operator                      | To archive a TOPdesk operator, the archiving reason is required. When no archiving reason is specified, the script will result in an error. So when using this script, an __archiving reason is required__.   |
-| Delete.ps1                      | Clear loginnames and archive TOPdesk operator | The TOPdesk API does not support a delete, however, the loginnames are required to be unique in TOPdesk, therefore we clean these.<br> To archive a TOPdesk operator, the archiving reason is required. When no archiving reason is specified, the script will result in an error. So when using this script, an __archiving reason is required__.   |
-| permissions.operatorGroups.ps1  | Query the operator groups in TOPdesk          |           |
-| grant.operatorGroup.ps1         | Grant an operator group to an operator        |           |
-| revoke.operatorGroup.ps1        | Grant an operator group to an operator        |           |
-
-
-## Getting started
-### Connection settings
-The following settings are required to connect to the API.
-
-| Setting               | Description                                                       | Mandatory   |
-| --------------------- | ----------------------------------------------------------------- | ----------- |
-| URL                   | The URL to the TOPdesk environment                                | Yes         |
-| Username              | The username of the operator to connect to the API                | Yes         |
-| Application password  | The application password for the operator to connect to the API.<br> For more information on how to create this, please see the [TOPdesk documentation](https://developers.topdesk.com/tutorial.html#show-collapse-usage-createAppPassword).    | Yes         |
-| Operator archiving reason  | The default archiving reason, for example: Persoon uit organisatie   | Yes         |
-| When an item can't be found in TOPdesk  | What to do when the mapping is provided (from source data) but no matching item in TOPdesk can be found. Choose to either: <ul><li>generate an error and stop processing</li><li>or do not set/update field in TOPdesk</li></ul>   | Yes         |
-| When a department is empty because it's missing in the source data  | What to do when the department is mising in the mapping beause it is missing in source data. Choose to either: <ul><li>generate an error and stop processing</li><li>or do not set/update the department field in TOPdesk</li></ul> | Yes         |
-| When a budgetholder is empty because it's missing in the source data  | What to do when the department is mising in the mapping beause it is missing in source data. Choose to either: <ul><li> generate an error and stop processing</li><li>or do not set/update the budgetholder field in TOPdesk</li></ul>  | Yes         |

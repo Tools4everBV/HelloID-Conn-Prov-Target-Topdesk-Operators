@@ -289,9 +289,10 @@ try {
 
     if ($auditLogs.isError -contains -$true) {
         Throw "Error(s) occured while looking up required values"
-    }
-    
+    }  
 #endregion lookup
+
+#region Write
 
     # Add an auditMessage showing what will happen during enforcement
     if ($dryRun -eq $true) {
@@ -300,7 +301,6 @@ try {
         })
     }
     
-    # region write
     $action = 'Archive'
 
     # Process
@@ -379,3 +379,4 @@ try {
     }
     Write-Output $result | ConvertTo-Json -Depth 10
 }
+#endregion Write

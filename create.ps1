@@ -667,6 +667,8 @@ function New-TopdeskOperator {
 
 #endregion helperfunctions
 
+#region lookup
+
 # Create or Correlate user
 try {
         $action = 'Process'
@@ -718,8 +720,9 @@ try {
         if ($auditLogs.isError -contains -$true) {
             Throw "Error(s) occured while looking up required values"
         }
-        #endregion lookup
-    
+#endregion lookup
+
+#region Write
         # Verify if a user must be created or correlated
         if ([string]::IsNullOrEmpty($TopdeskOperator)) {
             $action = 'Create'
@@ -738,7 +741,7 @@ try {
                 Message = "$action Topdesk operator for: [$($p.DisplayName)], will be executed during enforcement"
             })
         }
-    
+
         # Process
         if (-not($dryRun -eq $true)){
             switch ($action) {

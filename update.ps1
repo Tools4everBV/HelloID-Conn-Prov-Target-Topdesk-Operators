@@ -617,7 +617,7 @@ function Set-TopdeskOperator {
 
 #endregion helperfunctions
 
-# Create or Correlate user
+#region lookup
 try {
         $action = 'Process'
 
@@ -667,15 +667,15 @@ try {
         if ($auditLogs.isError -contains -$true) {
             Throw "Error(s) occured while looking up required values"
         }
-        #endregion lookup
+#endregion lookup
 
+#region Write
         if ($dryRun -eq $true) {
             $auditLogs.Add([PSCustomObject]@{
                 Message = "$action Topdesk operator for: [$($p.DisplayName)], will be executed during enforcement"
             })
         }
  
-        # region write
         $action = 'Update'
 
         # Process

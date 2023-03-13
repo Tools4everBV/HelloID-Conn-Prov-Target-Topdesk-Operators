@@ -256,6 +256,8 @@ try {
 
 #endregion lookup
 
+#region Write
+
     # Add an auditMessage showing what will happen during enforcement
     if ($dryRun -eq $true) {
         $auditLogs.Add([PSCustomObject]@{
@@ -263,7 +265,6 @@ try {
         })
     }
 
-    # region write
     $action = 'Archive'
 
     # Process
@@ -319,3 +320,4 @@ try {
     }
     Write-Output $result | ConvertTo-Json -Depth 10
 }
+#endregion Write
