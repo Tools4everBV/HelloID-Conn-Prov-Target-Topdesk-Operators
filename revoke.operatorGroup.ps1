@@ -265,7 +265,7 @@ try {
         Write-Verbose -verbose "Revoking permission $($pRef.Name) ($($pRef.id)) from ($($aRef))"
         $splatParams = @{
             Uri     = "$BaseUrl/tas/api/operators/id/$($aRef)/operatorgroups"
-            Method  = 'Post'
+            Method  = 'Delete'
             Headers = $authHeaders
             Body    = ConvertTo-Json -InputObject @(@{ id = $($pRef.id) }) -Depth 10
         }
