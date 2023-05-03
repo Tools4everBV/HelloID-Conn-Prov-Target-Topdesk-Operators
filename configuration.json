@@ -2,11 +2,10 @@
   {
     "key": "baseUrl",
     "type": "input",
-    "defaultValue": "",
+    "defaultValue": "https://customer-test.topdesk.net",
     "templateOptions": {
       "label": "url",
-      "placeholder": "https://customer-test.topdesk.net",
-      "description": "Please enter the url to the TOPdesk environment",
+      "placeholder": "Please enter the url to the TOPdesk api",
       "required": true
     }
   },
@@ -16,8 +15,7 @@
     "defaultValue": "",
     "templateOptions": {
       "label": "Username",
-      "placeholder": "",
-      "description": "Please enter the username",
+      "placeholder": "Please enter the username",
       "required": true
     }
   },
@@ -28,20 +26,28 @@
     "templateOptions": {
       "label": "Application password",
       "type": "password",
-      "placeholder": "",
-      "description": "Please enter the aplication password",
+      "placeholder": "Please enter the application password",
       "required": true
     }
   },
   {
     "key": "operatorArchivingReason",
     "type": "input",
-    "defaultValue": "",
+    "defaultValue": "Persoon uit organisatie",
     "templateOptions": {
-      "label": "operatorArchivingReason",
+      "label": "Archiving reason",
       "placeholder": "",
-      "description": "Please enter the default reason for archiving",
+      "description": "Archiving reason is required when archiving a operator",
       "required": true
+    }
+  },
+  {
+    "key": "isDebug",
+    "type": "checkbox",
+    "defaultValue": true,
+    "templateOptions": {
+      "label": "Toggle debug logging",
+      "required": false
     }
   },
   {
