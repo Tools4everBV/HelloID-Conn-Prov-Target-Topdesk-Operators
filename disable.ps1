@@ -1,7 +1,7 @@
 #####################################################
 # HelloID-Conn-Prov-Target-Topdesk-Operators-Disable
 #
-# Version: 2.0
+# Version: 2.0.1
 #####################################################
 
 # Initialize default values
@@ -88,7 +88,7 @@ function Invoke-TopdeskRestMethod {
             }
             Invoke-RestMethod @splatParams -Verbose:$false
         } catch {
-            $PSCmdlet.ThrowTerminatingError($_)
+            throw $_
         }
     }
 }
