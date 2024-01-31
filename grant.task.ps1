@@ -1,12 +1,11 @@
 ###################################################################
-# HelloID-Conn-Prov-Target-Topdesk-Operators-RevokePermission-Group
+# HelloID-Conn-Prov-Target-Topdesk-Operators-GrantPermission-Task
 #
 # Version: 3.0.0 | new-powershell-connector
 #####################################################
 
 $pRef = $actionContext.References.Permission
 $aRef = $actionContext.References.Account
-$baseUrl = $actionContext.Configuration.baseUrl
 
 # Set to true at start, because only when an error occurs it is set to false
 $outputContext.Success = $true
@@ -19,6 +18,11 @@ switch ($($actionContext.Configuration.isDebug)) {
 
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
+
+# Account mapping. See for all possible options the Topdesk 'supporting files' API documentation at
+$account = [PSCustomObject]@{
+    $($pRef.Reference) = $true
+}
 
 #region functions
 function Set-AuthorizationHeaders {
@@ -100,7 +104,7 @@ function Get-TopdeskOperator {
 
         # Throw an error when account reference is empty
         $outputContext.AuditLogs.Add([PSCustomObject]@{
-                Action  = "RevokePermission"
+                Action  = "GrantPermission"
                 Message = "The account reference is empty. This is a scripting issue."
                 IsError = $true
             })
@@ -118,7 +122,7 @@ function Get-TopdeskOperator {
     # Check if only one result is returned
     if ([string]::IsNullOrEmpty($operator)) {
         $outputContext.AuditLogs.Add([PSCustomObject]@{ 
-                Action  = "RevokePermission"
+                Action  = "GrantPermission"
                 Message = "Operator with reference [$AccountReference)] is not found. If the operator is deleted, you might need to regrant the entitlement."
                 IsError = $true
             })
@@ -155,7 +159,7 @@ function Set-TopdeskOperatorArchiveStatus {
         # When the 'archiving reason' setting is not configured in the target connector configuration
         if ([string]::IsNullOrEmpty($ArchivingReason)) {
             $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    Action  = "RevokePermission"
+                    Action  = "GrantPermission"
                     Message = "Configuration setting 'Archiving Reason' is empty. This is a configuration error."
                     IsError = $true
                 })
@@ -174,7 +178,7 @@ function Set-TopdeskOperatorArchiveStatus {
         # When the configured archiving reason is not found in Topdesk
         if ([string]::IsNullOrEmpty($archivingReasonObject.id)) {
             $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    Action  = "RevokePermission"
+                    Action  = "GrantPermission"
                     Message = "Archiving reason [$ArchivingReason] not found in Topdesk"
                     IsError = $true
                 })
@@ -203,6 +207,34 @@ function Set-TopdeskOperatorArchiveStatus {
         $TopdeskOperator.status = $archiveStatus
     }
 }
+
+function Set-TopdeskOperator {
+    param (
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $BaseUrl,
+
+        [System.Collections.IDictionary]
+        $Headers,
+
+        [ValidateNotNullOrEmpty()]
+        [Object]
+        $Account,
+
+        [ValidateNotNullOrEmpty()]
+        [Object]
+        $TopdeskOperator
+    )
+
+    Write-Verbose "Updating operator"
+    $splatParams = @{
+        Uri     = "$BaseUrl/tas/api/operators/id/$($TopdeskOperator.id)"
+        Method  = 'PATCH'
+        Headers = $Headers
+        Body    = $Account | ConvertTo-Json
+    }
+    $null = Invoke-TopdeskRestMethod @splatParams
+}
 #endregion functions
 
 #region lookup
@@ -228,7 +260,7 @@ try {
     }
     #endregion lookup 
     
-    #region write 
+    #region write
     if (-Not($actionContext.DryRun -eq $true)) {          
         if ($TopdeskOperator.status -eq 'operatorArchived') {
 
@@ -244,14 +276,15 @@ try {
             Set-TopdeskOperatorArchiveStatus @splatParamsOperatorUnarchive
         }
 
-        Write-Verbose "Revoking operator group permission $($pRef.Name) ($($pRef.id)) from ($($aRef))"
-        $splatParams = @{
-            Uri     = "$BaseUrl/tas/api/operators/id/$($aRef)/filters/category"
-            Method  = 'DELETE'
-            Headers = $authHeaders
-            Body    = ConvertTo-Json -InputObject @(@{ id = $($pRef.id) }) -Depth 10
+        Write-Verbose "Granting task permission $($pRef.Reference) to ($($aRef))"        
+        # Update TOPdesk operator
+        $splatParamsOperatorUpdate = @{
+            TopdeskOperator = $TopdeskOperator
+            Account         = $account
+            Headers         = $authHeaders
+            BaseUrl         = $actionContext.Configuration.baseUrl
         }
-        $null = Invoke-TopdeskRestMethod @splatParams
+        Set-TopdeskOperator @splatParamsOperatorUpdate
         
         # As the update process could be started for an inactive HelloID operator, the user return should be archived state
         if ($shouldArchive) {
@@ -267,20 +300,20 @@ try {
             Set-TopdeskOperatorArchiveStatus @splatParamsOperatorArchive
         }
 
-        Write-Verbose "Successfully revoked operator group permission $($pRef.Name) ($($pRef.id)) from ($($aRef))"
+        Write-Verbose "Successfully granted task permission $($pRef.Reference) to ($($aRef))"
 
         $outputContext.AuditLogs.Add([PSCustomObject]@{
-                Action  = "RevokePermission"
-                Message = "Successfully revoked operator group permission $($pRef.Name) ($($pRef.id)) from ($($actionContext.References.Account))"
+                Action  = "GrantPermission"
+                Message = "Successfully granted task permission $($pRef.Reference) to ($($actionContext.References.Account))"
                 IsError = $false
             })
     }
     else {
         # Add an auditMessage showing what will happen during enforcement
-        Write-Warning "DryRun: Would revoke operator group permission $($pRef.Name) ($($pRef.id)) from [$($personContext.Person.DisplayName)]"
+        Write-Warning "DryRun: Would grant task permission $($pRef.Reference) to [$($personContext.Person.DisplayName)]"
         $outputContext.AuditLogs.Add([PSCustomObject]@{
-                Action  = "RevokePermission"
-                Message = "DryRun: Would revoke operator group permission $($pRef.Name) ($($pRef.id)) from [$($personContext.Person.DisplayName)]"
+                Action  = "GrantPermission"
+                Message = "DryRun: Would grant task permission $($pRef.Reference) to [$($personContext.Person.DisplayName)]"
                 IsError = $false
             })
     } 
@@ -292,20 +325,20 @@ catch {
         $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
 
         if (-Not [string]::IsNullOrEmpty($ex.ErrorDetails.Message)) {
-            $errorMessage = "Could not revoke operator group permission: $($ex.ErrorDetails.Message)"
+            $errorMessage = "Could not grant task permission: $($ex.ErrorDetails.Message)"
         }
         else {
-            $errorMessage = "Could not revoke operator group permission Error: $($ex.Exception.Message)"
+            $errorMessage = "Could not grant task permission Error: $($ex.Exception.Message)"
         }
     }
     else {
-        $errorMessage = "Could not revoke operator group permission. Error: $($ex.Exception.Message) $($ex.ScriptStackTrace)"
+        $errorMessage = "Could not grant task permission. Error: $($ex.Exception.Message) $($ex.ScriptStackTrace)"
     }
 
     # Only log when there are no lookup values, as these generate their own audit message
     if (-Not($ex.Exception.Message -eq 'Error(s) occured while looking up required values')) {
         $outputContext.AuditLogs.Add([PSCustomObject]@{
-                Action  = "RevokePermission"
+                Action  = "GrantPermission"
                 Message = $errorMessage
                 IsError = $true
             })

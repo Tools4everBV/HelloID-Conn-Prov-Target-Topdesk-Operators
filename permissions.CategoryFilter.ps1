@@ -1,44 +1,111 @@
-$c = $configuration | ConvertFrom-Json
+###################################################################
+# HelloID-Conn-Prov-Target-Topdesk-Operators-Permissions-CategoryFilters
+#
+# Version: 3.0.0 | new-powershell-connector
+#####################################################
 
-# Set TLS to accept TLS, TLS 1.1 and TLS 1.2
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
+# Initialize default values
+$take = 100
+$skip = 0
+$baseUrl = $actionContext.Configuration.baseUrl
 
-$VerbosePreference = "SilentlyContinue"
-$InformationPreference = "Continue"
-$WarningPreference = "Continue"
+# Set debug logging
+switch ($($actionContext.Configuration.isDebug)) {
+    $true { $VerbosePreference = 'Continue' }
+    $false { $VerbosePreference = 'SilentlyContinue' }
+}
 
-# TOPdesk system data
-$baseUrl = $c.baseUrl
-$username = $c.username
-$apiKey = $c.apikey
+# Enable TLS1.2
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
-$take = 100;   
-$skip = 0;
-try {
+#region functions
+
+function Set-AuthorizationHeaders {
+    param (
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $Username,
+
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $ApiKey
+    )
     # Create basic authentication string
-    $bytes = [System.Text.Encoding]::ASCII.GetBytes("${username}:${apikey}")
+    $bytes = [System.Text.Encoding]::ASCII.GetBytes("${Username}:${Apikey}")
     $base64 = [System.Convert]::ToBase64String($bytes)
 
     # Set authentication headers
-    $headers = [System.Collections.Generic.Dictionary[string, string]]::new()
-    $headers.Add("Authorization", "BASIC $base64")
-    $headers.Add("Accept", 'application/json')
+    $authHeaders = [System.Collections.Generic.Dictionary[string, string]]::new()
+    $authHeaders.Add("Authorization", "BASIC $base64")
+    $authHeaders.Add("Accept", 'application/json')
 
-    # Make sure baseUrl ends with '/'
-    if ($baseUrl.EndsWith("/") -eq $false) {
-        $baseUrl = $baseUrl + "/"
+    Write-Output $authHeaders
+}
+
+function Invoke-TopdeskRestMethod {
+    param (
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $Method,
+
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $Uri,
+
+        [object]
+        $Body,
+
+        [string]
+        $ContentType = 'application/json; charset=utf-8',
+
+        [System.Collections.IDictionary]
+        $Headers
+    )
+    process {
+        try {
+            $splatParams = @{
+                Uri         = $Uri
+                Headers     = $Headers
+                Method      = $Method
+                ContentType = $ContentType
+            }
+
+            if ($Body) {
+                $splatParams['Body'] = [Text.Encoding]::UTF8.GetBytes($Body)
+            }
+            Invoke-RestMethod @splatParams -Verbose:$false
+        }
+        catch {
+            Throw $_
+        }
     }
+}
+#endregion functions
 
-    Write-Verbose "Searching for operator filters"
-    $operatorFilters = [System.Collections.ArrayList]@();
-    $paged = $true;
+try {
+
+    # Setup authentication headers
+    $splatParamsAuthorizationHeaders = @{
+        UserName = $actionContext.Configuration.username
+        ApiKey   = $actionContext.Configuration.apikey
+    }
+    $authHeaders = Set-AuthorizationHeaders @splatParamsAuthorizationHeaders
+
+    Write-Verbose "Searching for category filters"
+    $categoryFilters = [System.Collections.ArrayList]@()
+    $paged = $true
     while ($paged) {
-        # Define specific endpoint URI
-        $operatorFiltersUri = $baseUrl + "tas/api/operators/filters/category/?start=$skip&page_size=$take"
-        $operatorFiltersResponse = Invoke-RestMethod -uri $operatorFiltersUri -Method Get -Headers $headers -UseBasicParsing
+
+        # Get CategoryFilters
+        $splatParams = @{
+            Uri     = "$baseUrl/tas/api/operators/filters/category/?start=$skip&page_size=$take"
+            Method  = 'GET'
+            Headers = $authHeaders
+        }
+        $categoryFiltersResponse = Invoke-TopdeskRestMethod @splatParams
 
         # Set $paged to false (to end loop) when response is less than take, indicating there are no more records to query
-        if ($operatorFiltersResponse.id.count -lt $take) {
+        if ($categoryFiltersResponse.id.count -lt $take) {
             $paged = $false;
         }
         # Else: Up skip with take to skip the already queried records
@@ -46,27 +113,27 @@ try {
             $skip = $skip + $take;
         }
 
-        if ($operatorFiltersResponse -is [array]) {
-            [void]$operatorFilters.AddRange($operatorFiltersResponse);
+        if ($categoryFiltersResponse -is [array]) {
+            [void]$categoryFilters.AddRange($categoryFiltersResponse)
         }
         else {
-            [void]$operatorFilters.Add($operatorFiltersResponse);
+            [void]$categoryFilters.Add($categoryFiltersResponse)
         }
     }
 }
 catch {
-    throw $_;
+    throw $_
 }
 
-foreach ($filter in $operatorFilters) {
-    $returnObject = @{
-        DisplayName    = "Operator Filter - $($filter.name)";
-        Identification = @{
-            Id   = $filter.id
-            Name = $filter.name
-            Type = "OperatorFilter"
+foreach ($filter in $categoryFilters) {
+    $outputContext.Permissions.Add(
+        @{
+            displayName    = "CategoryFilter - $($filter.name)"
+            identification = @{
+                Id   = $filter.id
+                Name = $filter.name
+                Type = "CategoryFilter"
+            }
         }
-    };
-
-    Write-Output $returnObject | ConvertTo-Json -Depth 10
+    )
 }

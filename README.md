@@ -1,8 +1,12 @@
 # HelloID-Conn-Prov-Target-Topdesk-Operators
 
 | :warning: Warning |
-|:-|
-| This connector has been updated to a new version (V2), not officaly released. This version is not backward compatible, but a Tools4ever consultant or a partner can upgrade the connector with minor effort. If you have questions please ask them on our (new forum post needed for operator connector?) [forum](https://forum.helloid.com/forum/helloid-connectors/provisioning/1266-helloid-conn-prov-target-topdesk). |
+| :---------------- |
+| This readme is not updated. This will be done in combination with the import/export file for powershell V2 |
+
+| :warning: Warning |
+| :---------------- |
+| This script is for the new powershell connector. Make sure to use the mapping and correlation keys like mentionded in this readme. For more information, please read our [documentation](https://docs.helloid.com/en/provisioning/target-systems/powershell-v2-target-systems.html) |
 
 | :information_source: Information |
 |:-|
@@ -14,21 +18,23 @@
 
 ## Table of contents
 
-- [Introduction](#Introduction)
-- [Getting started](#Getting-started)
-  + [Prerequisites](#Prerequisites)
-  + [Connection settings](#Connection-settings)
-  + [Permissions](#Permissions)
-  + [Filters](#Filters)
-- [Setup the connector](#Setup-The-Connector)
-  + [Remove attributes when correlating a Topdesk person](#Remove-attributes-when-correlating-a-Topdesk-person)
-  + [Disable department or budgetholder](#Disable-department-or-budgetholder)
-  + [Extra fields](#Extra-fields)
-- [Remarks](#Remarks)
-  + [Managing operator groups](#Managing-operator-groups)
-  + [Use Topdesk person as input](#Use-Topdesk-person-as-input)
-- [Getting help](#Getting-help)
-- [HelloID Docs](#HelloID-docs)
+- [HelloID-Conn-Prov-Target-Topdesk-Operators](#helloid-conn-prov-target-topdesk-operators)
+  - [Table of contents](#table-of-contents)
+  - [Introduction](#introduction)
+  - [Getting started](#getting-started)
+    - [Prerequisites](#prerequisites)
+    - [Connection settings](#connection-settings)
+    - [Permissions](#permissions)
+      - [Filters](#filters)
+  - [Setup the connector](#setup-the-connector)
+    - [Remove attributes when correlating a Topdesk person](#remove-attributes-when-correlating-a-topdesk-person)
+    - [Disable department or budgetholder](#disable-department-or-budgetholder)
+    - [Extra fields](#extra-fields)
+  - [Remarks](#remarks)
+    - [Managing operator groups](#managing-operator-groups)
+    - [Use Topdesk person as input](#use-topdesk-person-as-input)
+  - [Getting help](#getting-help)
+  - [HelloID docs](#helloid-docs)
 
 ## Introduction
 
@@ -109,30 +115,8 @@ For example:
 "externalLinks": []
 ```
 
-If you don't need the mapping of the department field or the budgetholder field in Topdesk, it's necessary to comment out both mapping and the call function in the script.
+If you don't need the mapping of the department field or the budgetholder field in Topdesk, you can remove them from the field mapping. The create and update script will skip the lookup action. The branch lookup value is still mandatory.
 
-Example for the department field:
-
-Mapping:
-
-```powershell
-# department          = @{ lookupValue = $p.PrimaryContract.Department.DisplayName }
-```
-
-Call function:
-
-```powershell
-# Resolve department id
-# $splatParamsDepartment = @{
-#     Account                   = [ref]$account
-#     AuditLogs                 = [ref]$auditLogs
-#     Headers                   = $authHeaders
-#     BaseUrl                   = $config.baseUrl
-#     LookupErrorHrDepartment   = $config.lookupErrorHrDepartment
-#     LookupErrorTopdesk        = $config.lookupErrorTopdesk
-# }
-# Get-TopdeskDepartment @splatParamsDepartment
-```
 
 ### Extra fields
 You can add extra fields by adding them to the account mapping. For all possible options please check the [Topdesk API documentation](https://developers.topdesk.com/explorer/?page=supporting-files#/).

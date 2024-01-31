@@ -1,5 +1,5 @@
 ###################################################################
-# HelloID-Conn-Prov-Target-Topdesk-Operators-RevokePermission-Group
+# HelloID-Conn-Prov-Target-Topdesk-Operators-RevokePermission-Task
 #
 # Version: 3.0.0 | new-powershell-connector
 #####################################################
@@ -19,6 +19,11 @@ switch ($($actionContext.Configuration.isDebug)) {
 
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
+
+# Account mapping. See for all possible options the Topdesk 'supporting files' API documentation at
+$account = [PSCustomObject]@{
+    $($pRef.Reference) = $false
+}
 
 #region functions
 function Set-AuthorizationHeaders {
@@ -203,6 +208,34 @@ function Set-TopdeskOperatorArchiveStatus {
         $TopdeskOperator.status = $archiveStatus
     }
 }
+
+function Set-TopdeskOperator {
+    param (
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $BaseUrl,
+
+        [System.Collections.IDictionary]
+        $Headers,
+
+        [ValidateNotNullOrEmpty()]
+        [Object]
+        $Account,
+
+        [ValidateNotNullOrEmpty()]
+        [Object]
+        $TopdeskOperator
+    )
+
+    Write-Verbose "Updating operator"
+    $splatParams = @{
+        Uri     = "$BaseUrl/tas/api/operators/id/$($TopdeskOperator.id)"
+        Method  = 'PATCH'
+        Headers = $Headers
+        Body    = $Account | ConvertTo-Json
+    }
+    $null = Invoke-TopdeskRestMethod @splatParams
+}
 #endregion functions
 
 #region lookup
@@ -244,14 +277,15 @@ try {
             Set-TopdeskOperatorArchiveStatus @splatParamsOperatorUnarchive
         }
 
-        Write-Verbose "Revoking operator group permission $($pRef.Name) ($($pRef.id)) from ($($aRef))"
-        $splatParams = @{
-            Uri     = "$BaseUrl/tas/api/operators/id/$($aRef)/filters/category"
-            Method  = 'DELETE'
-            Headers = $authHeaders
-            Body    = ConvertTo-Json -InputObject @(@{ id = $($pRef.id) }) -Depth 10
+        Write-Verbose "Revoking task permission $($pRef.Reference) from ($($aRef))"
+        # Update TOPdesk operator
+        $splatParamsOperatorUpdate = @{
+            TopdeskOperator = $TopdeskOperator
+            Account         = $account
+            Headers         = $authHeaders
+            BaseUrl         = $actionContext.Configuration.baseUrl
         }
-        $null = Invoke-TopdeskRestMethod @splatParams
+        Set-TopdeskOperator @splatParamsOperatorUpdate
         
         # As the update process could be started for an inactive HelloID operator, the user return should be archived state
         if ($shouldArchive) {
@@ -267,20 +301,20 @@ try {
             Set-TopdeskOperatorArchiveStatus @splatParamsOperatorArchive
         }
 
-        Write-Verbose "Successfully revoked operator group permission $($pRef.Name) ($($pRef.id)) from ($($aRef))"
+        Write-Verbose "Successfully revoked task permission $($pRef.Reference) from ($($aRef))"
 
         $outputContext.AuditLogs.Add([PSCustomObject]@{
                 Action  = "RevokePermission"
-                Message = "Successfully revoked operator group permission $($pRef.Name) ($($pRef.id)) from ($($actionContext.References.Account))"
+                Message = "Successfully revoked task permission $($pRef.Reference) from ($($actionContext.References.Account))"
                 IsError = $false
             })
     }
     else {
         # Add an auditMessage showing what will happen during enforcement
-        Write-Warning "DryRun: Would revoke operator group permission $($pRef.Name) ($($pRef.id)) from [$($personContext.Person.DisplayName)]"
+        Write-Warning "DryRun: Would revoke task permission $($pRef.Reference) from [$($personContext.Person.DisplayName)]"
         $outputContext.AuditLogs.Add([PSCustomObject]@{
                 Action  = "RevokePermission"
-                Message = "DryRun: Would revoke operator group permission $($pRef.Name) ($($pRef.id)) from [$($personContext.Person.DisplayName)]"
+                Message = "DryRun: Would revoke task permission $($pRef.Reference) from [$($personContext.Person.DisplayName)]"
                 IsError = $false
             })
     } 
@@ -292,14 +326,14 @@ catch {
         $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
 
         if (-Not [string]::IsNullOrEmpty($ex.ErrorDetails.Message)) {
-            $errorMessage = "Could not revoke operator group permission: $($ex.ErrorDetails.Message)"
+            $errorMessage = "Could not revoke task permission: $($ex.ErrorDetails.Message)"
         }
         else {
-            $errorMessage = "Could not revoke operator group permission Error: $($ex.Exception.Message)"
+            $errorMessage = "Could not revoke task permission Error: $($ex.Exception.Message)"
         }
     }
     else {
-        $errorMessage = "Could not revoke operator group permission. Error: $($ex.Exception.Message) $($ex.ScriptStackTrace)"
+        $errorMessage = "Could not revoke task permission. Error: $($ex.Exception.Message) $($ex.ScriptStackTrace)"
     }
 
     # Only log when there are no lookup values, as these generate their own audit message
