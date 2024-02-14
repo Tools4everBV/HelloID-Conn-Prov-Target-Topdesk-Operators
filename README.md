@@ -40,27 +40,27 @@ _HelloID-Conn-Prov-Target-Topdesk-Operator_ is a _target_ connector. Topdesk pro
 
 The following lifecycle actions are available:
 
-| Action                         | Description                                                    |
-| ------------------------------ | -------------------------------------------------------------- |
-| create.ps1                     | PowerShell _create_ or _correlate_ lifecycle action            |
-| delete.ps1                     | PowerShell _delete_ lifecycle action                           |
-| disable.ps1                    | PowerShell _disable_ lifecycle action                          |
-| enable.ps1                     | PowerShell _enable_ lifecycle action                           |
-| update.ps1                     | PowerShell _update_ lifecycle action                           |
-| grant.operatorGroup.ps1        | PowerShell _grant_ operator group lifecycle action             |
-| revoke.operatorGroup.ps1       | PowerShell _revoke_ operator group lifecycle action            |
-| permissions.operatorGroups.ps1 | PowerShell _permissions_ get operator groups lifecycle action  |
-| grant.categoryFilter.ps1       | PowerShell _grant_ category filters lifecycle action           |
-| revoke.categoryFilter.ps1      | PowerShell _revoke_ category filters lifecycle action          |
-| permissions.categoryFilter.ps1 | PowerShell _permissions_ get category filters lifecycle action |
-| grant.operatorFilter.ps1       | PowerShell _grant_ operator filters lifecycle action           |
-| revoke.operatorFilter.ps1      | PowerShell _revoke_ operator filters lifecycle action          |
-| permissions.operatorFilter.ps1 | PowerShell _permissions_ get operator filters lifecycle action |
-| grant.task.ps1                 | PowerShell _grant_ task lifecycle action                       |
-| revoke.task.ps1                | PowerShell _revoke_ task lifecycle action                      |
-| permissions.task.ps1           | PowerShell _permissions_ with static list of tasks             |
-| configuration.json             | Default _configuration.json_                                   |
-| fieldMapping.json              | Default _fieldMapping.json_                                    |
+| Action                         | Description                                                                |
+| ------------------------------ | -------------------------------------------------------------------------- |
+| create.ps1                     | PowerShell _create_ or _correlate_ lifecycle action                        |
+| delete.ps1                     | PowerShell _delete_ lifecycle action (empty configured values and archive) |
+| disable.ps1                    | PowerShell _disable_ lifecycle action                                      |
+| enable.ps1                     | PowerShell _enable_ lifecycle action                                       |
+| update.ps1                     | PowerShell _update_ lifecycle action                                       |
+| grant.operatorGroup.ps1        | PowerShell _grant_ operator group lifecycle action                         |
+| revoke.operatorGroup.ps1       | PowerShell _revoke_ operator group lifecycle action                        |
+| permissions.operatorGroups.ps1 | PowerShell _permissions_ get operator groups lifecycle action              |
+| grant.categoryFilter.ps1       | PowerShell _grant_ category filters lifecycle action                       |
+| revoke.categoryFilter.ps1      | PowerShell _revoke_ category filters lifecycle action                      |
+| permissions.categoryFilter.ps1 | PowerShell _permissions_ get category filters lifecycle action             |
+| grant.operatorFilter.ps1       | PowerShell _grant_ operator filters lifecycle action                       |
+| revoke.operatorFilter.ps1      | PowerShell _revoke_ operator filters lifecycle action                      |
+| permissions.operatorFilter.ps1 | PowerShell _permissions_ get operator filters lifecycle action             |
+| grant.task.ps1                 | PowerShell _grant_ task lifecycle action                                   |
+| revoke.task.ps1                | PowerShell _revoke_ task lifecycle action                                  |
+| permissions.task.ps1           | PowerShell _permissions_ with static list of tasks                         |
+| configuration.json             | Default _configuration.json_                                               |
+| fieldMapping.json              | Default _fieldMapping.json_                                                |
 
 ## Getting started
 
