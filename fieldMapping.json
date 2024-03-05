@@ -80,7 +80,7 @@
             "Update"
           ],
           "MappingMode": "Complex",
-          "Value": "\"function getNetworkLoginName() {\\r\\n    let upn = '';\\r\\n\\r\\n    if (typeof Person.Accounts._3ca2d7838dd640edb12cc89f43b3ad1b.userPrincipalName !== 'undefined' && Person.Accounts._3ca2d7838dd640edb12cc89f43b3ad1b.userPrincipalName) {\\r\\n        upn = Person.Accounts._3ca2d7838dd640edb12cc89f43b3ad1b.userPrincipalName;\\r\\n    }\\r\\n\\r\\n    return upn;\\r\\n}\\r\\n\\r\\ngetNetworkLoginName()\"",
+          "Value": "\"function getNetworkLoginName() {\\r\\n    let upn = '';\\r\\n\\r\\n    if (typeof Person.Accounts.MicrosoftActiveDirectory.userPrincipalName !== 'undefined' && Person.Accounts.MicrosoftActiveDirectory.userPrincipalName) {\\r\\n        upn = Person.Accounts.MicrosoftActiveDirectory.userPrincipalName;\\r\\n    }\\r\\n\\r\\n    return upn;\\r\\n}\\r\\n\\r\\ngetNetworkLoginName()\"",
           "UsedInNotifications": false,
           "StoreInAccountData": false
         },
