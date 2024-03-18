@@ -36,18 +36,8 @@
     "defaultValue": "Persoon uit organisatie",
     "templateOptions": {
       "label": "Archiving reason",
-      "placeholder": "",
       "description": "Archiving reason is required when archiving a operator",
       "required": true
-    }
-  },
-  {
-    "key": "isDebug",
-    "type": "checkbox",
-    "defaultValue": true,
-    "templateOptions": {
-      "label": "Toggle debug logging",
-      "required": false
     }
   },
   {
@@ -102,6 +92,15 @@
           "label": "Clear the budgetholder field in TOPdesk"
         }
       ]
+    }
+  },
+  {
+    "key": "isDebug",
+    "type": "checkbox",
+    "defaultValue": false,
+    "templateOptions": {
+      "label": "Toggle debug logging",
+      "required": false
     }
   }
 ]

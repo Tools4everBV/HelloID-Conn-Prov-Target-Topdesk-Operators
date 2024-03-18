@@ -1,35 +1,31 @@
 ###################################################################
-# HelloID-Conn-Prov-Target-Topdesk-Operators-Permissions-Retrieve
+# HelloID-Conn-Prov-Target-Topdesk-Operators-Permissions-Groups
 #
-# Version: 2.0
-###################################################################
+# Version: 3.0.0 | new-powershell-connector
+#####################################################
 
 # Initialize default values
-$config = $configuration | ConvertFrom-Json
 $take = 100
 $skip = 0
-$baseUrl = $config.baseUrl
+$baseUrl = $actionContext.Configuration.baseUrl
 
 # Set debug logging
-switch ($($config.IsDebug)) {
-    $true  { $VerbosePreference = 'Continue' }
+switch ($($actionContext.Configuration.isDebug)) {
+    $true { $VerbosePreference = 'Continue' }
     $false { $VerbosePreference = 'SilentlyContinue' }
 }
 
-# Set TLS to accept TLS, TLS 1.1 and TLS 1.2
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
+# Enable TLS1.2
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
-# region helperfunctions
+#region functions
 
 function Set-AuthorizationHeaders {
-    [CmdletBinding()]
     param (
-        [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
         [string]
         $Username,
 
-        [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
         [string]
         $ApiKey
@@ -47,14 +43,11 @@ function Set-AuthorizationHeaders {
 }
 
 function Invoke-TopdeskRestMethod {
-    [CmdletBinding()]
     param (
-        [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
         [string]
         $Method,
 
-        [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
         [string]
         $Uri,
@@ -65,7 +58,6 @@ function Invoke-TopdeskRestMethod {
         [string]
         $ContentType = 'application/json; charset=utf-8',
 
-        [Parameter(Mandatory)]
         [System.Collections.IDictionary]
         $Headers
     )
@@ -82,22 +74,26 @@ function Invoke-TopdeskRestMethod {
                 $splatParams['Body'] = [Text.Encoding]::UTF8.GetBytes($Body)
             }
             Invoke-RestMethod @splatParams -Verbose:$false
-        } catch {
-            $PSCmdlet.ThrowTerminatingError($_)
+        }
+        catch {
+            Throw $_
         }
     }
 }
-
-# end region helperfunctions
+#endregion functions
 
 try {
 
-     # Setup authentication headers
-    $authHeaders = Set-AuthorizationHeaders -UserName $Config.username -ApiKey $Config.apiKey
+    # Setup authentication headers
+    $splatParamsAuthorizationHeaders = @{
+        UserName = $actionContext.Configuration.username
+        ApiKey   = $actionContext.Configuration.apikey
+    }
+    $authHeaders = Set-AuthorizationHeaders @splatParamsAuthorizationHeaders
 
     Write-Verbose "Searching for operator groups"
-    $operatorGroups = [System.Collections.ArrayList]@();
-    $paged = $true;
+    $operatorGroups = [System.Collections.ArrayList]@()
+    $paged = $true
     while ($paged) {
 
         # Get operatorgroups
@@ -118,26 +114,26 @@ try {
         }
 
         if ($operatorGroupsResponse -is [array]) {
-            [void]$operatorGroups.AddRange($operatorGroupsResponse);
+            [void]$operatorGroups.AddRange($operatorGroupsResponse)
         }
         else {
-            [void]$operatorGroups.Add($operatorGroupsResponse);
+            [void]$operatorGroups.Add($operatorGroupsResponse)
         }
     }
 }
 catch {
-    throw $_;
+    throw $_
 }
 
 foreach ($group in $operatorGroups) {
-    $returnObject = @{
-        DisplayName    = "OperatorGroup - $($group.groupName)";
-        Identification = @{
-            Id   = $group.id
-            Name = $group.groupName
-            Type = "OperatorGroup"
+    $outputContext.Permissions.Add(
+        @{
+            displayName    = "OperatorGroup - $($group.groupName)";
+            identification = @{
+                Id   = $group.id
+                Name = $group.groupName
+                Type = "OperatorGroup"
+            }
         }
-    };
-
-    Write-Output $returnObject | ConvertTo-Json -Depth 10
+    )
 }
