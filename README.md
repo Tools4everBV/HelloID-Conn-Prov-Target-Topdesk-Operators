@@ -119,6 +119,7 @@ Credentials with the rights listed below.
 | Operators                 | __X__ | __X__ | __X__  |        | __X__   |
 | Operator groups           | __X__ | __X__ | __X__  |        |         |
 | Permission groups         | __X__ |       |        |        |         |
+| Filters                   | __X__ | __X__ |        |        |         |
 | Login data                |       | __X__ |        |        |         |
 | __API access__            |
 | REST API                  | __X__ |       |        |        |         |
