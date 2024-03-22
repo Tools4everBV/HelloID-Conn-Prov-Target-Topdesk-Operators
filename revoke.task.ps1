@@ -262,7 +262,21 @@ try {
     #endregion lookup 
     
     #region write 
-    if (-Not($actionContext.DryRun -eq $true)) {          
+    if (-Not($actionContext.DryRun -eq $true)) {  
+        if ($TopdeskOperator.status -eq 'operatorArchived') {
+
+            # Unarchive operator
+            $shouldArchive = $true
+            $splatParamsOperatorUnarchive = @{
+                TopdeskOperator = [ref]$TopdeskOperator
+                Headers         = $authHeaders
+                BaseUrl         = $actionContext.Configuration.baseUrl
+                Archive         = $false
+                ArchivingReason = $actionContext.Configuration.operatorArchivingReason
+            }
+            Set-TopdeskOperatorArchiveStatus @splatParamsOperatorUnarchive
+        }
+        
         Write-Verbose "Revoking task permission $($pRef.Reference) from ($($aRef))"
         # Update TOPdesk operator
         $splatParamsOperatorUpdate = @{
@@ -273,6 +287,20 @@ try {
         }
         Set-TopdeskOperator @splatParamsOperatorUpdate
         
+        # As the update process could be started for an inactive HelloID operator, the user return should be archived state
+        if ($shouldArchive) {
+
+            # Archive operator
+            $splatParamsOperatorArchive = @{
+                TopdeskOperator = [ref]$TopdeskOperator
+                Headers         = $authHeaders
+                BaseUrl         = $actionContext.Configuration.baseUrl
+                Archive         = $true
+                ArchivingReason = $actionContext.Configuration.operatorArchivingReason
+            }
+            Set-TopdeskOperatorArchiveStatus @splatParamsOperatorArchive
+        }
+
         Write-Verbose "Successfully revoked task permission $($pRef.Reference) from ($($aRef))"
 
         $outputContext.AuditLogs.Add([PSCustomObject]@{

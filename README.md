@@ -23,6 +23,7 @@
   - [Setup the connector](#setup-the-connector)
     - [Remove attributes when updating a Topdesk operator instead of corelating](#remove-attributes-when-updating-a-topdesk-operator-instead-of-corelating)
     - [Disable department or budgetholder](#disable-department-or-budgetholder)
+    - [Managing tasks permissions](#managing-tasks-permissions)
   - [Getting help](#getting-help)
   - [HelloID docs](#helloid-docs)
 
@@ -40,27 +41,27 @@ _HelloID-Conn-Prov-Target-Topdesk-Operator_ is a _target_ connector. Topdesk pro
 
 The following lifecycle actions are available:
 
-| Action                         | Description                                                                |
-| ------------------------------ | -------------------------------------------------------------------------- |
-| create.ps1                     | PowerShell _create_ or _correlate_ lifecycle action                        |
-| delete.ps1                     | PowerShell _delete_ lifecycle action (empty configured values and archive) |
-| disable.ps1                    | PowerShell _disable_ lifecycle action                                      |
-| enable.ps1                     | PowerShell _enable_ lifecycle action                                       |
-| update.ps1                     | PowerShell _update_ lifecycle action                                       |
-| grant.operatorGroup.ps1        | PowerShell _grant_ operator group lifecycle action                         |
-| revoke.operatorGroup.ps1       | PowerShell _revoke_ operator group lifecycle action                        |
-| permissions.operatorGroups.ps1 | PowerShell _permissions_ get operator groups lifecycle action              |
-| grant.categoryFilter.ps1       | PowerShell _grant_ category filters lifecycle action                       |
-| revoke.categoryFilter.ps1      | PowerShell _revoke_ category filters lifecycle action                      |
-| permissions.categoryFilter.ps1 | PowerShell _permissions_ get category filters lifecycle action             |
-| grant.operatorFilter.ps1       | PowerShell _grant_ operator filters lifecycle action                       |
-| revoke.operatorFilter.ps1      | PowerShell _revoke_ operator filters lifecycle action                      |
-| permissions.operatorFilter.ps1 | PowerShell _permissions_ get operator filters lifecycle action             |
-| grant.task.ps1                 | PowerShell _grant_ task lifecycle action                                   |
-| revoke.task.ps1                | PowerShell _revoke_ task lifecycle action                                  |
-| permissions.task.ps1           | PowerShell _permissions_ with static list of tasks                         |
-| configuration.json             | Default _configuration.json_                                               |
-| fieldMapping.json              | Default _fieldMapping.json_                                                |
+| Action                         | Description                                                                                     |
+| ------------------------------ | ----------------------------------------------------------------------------------------------- |
+| create.ps1                     | PowerShell _create_ or _correlate_ lifecycle action                                             |
+| delete.ps1                     | PowerShell _delete_ lifecycle action (empty configured values and archive)                      |
+| disable.ps1                    | PowerShell _disable_ lifecycle action                                                           |
+| enable.ps1                     | PowerShell _enable_ lifecycle action                                                            |
+| update.ps1                     | PowerShell _update_ lifecycle action                                                            |
+| grant.operatorGroup.ps1        | PowerShell _grant_ operator group lifecycle action                                              |
+| revoke.operatorGroup.ps1       | PowerShell _revoke_ operator group lifecycle action                                             |
+| permissions.operatorGroups.ps1 | PowerShell _permissions_ get operator groups lifecycle action                                   |
+| grant.categoryFilter.ps1       | PowerShell _grant_ category filters lifecycle action                                            |
+| revoke.categoryFilter.ps1      | PowerShell _revoke_ category filters lifecycle action                                           |
+| permissions.categoryFilter.ps1 | PowerShell _permissions_ get category filters lifecycle action                                  |
+| grant.operatorFilter.ps1       | PowerShell _grant_ operator filters lifecycle action                                            |
+| revoke.operatorFilter.ps1      | PowerShell _revoke_ operator filters lifecycle action                                           |
+| permissions.operatorFilter.ps1 | PowerShell _permissions_ get operator filters lifecycle action                                  |
+| grant.task.ps1                 | PowerShell _grant_ task lifecycle action. Set concurrent actions to 1 to prevent timing issues  |
+| revoke.task.ps1                | PowerShell _revoke_ task lifecycle action. Set concurrent actions to 1 to prevent timing issues |
+| permissions.task.ps1           | PowerShell _permissions_ with static list of tasks                                              |
+| configuration.json             | Default _configuration.json_                                                                    |
+| fieldMapping.json              | Default _fieldMapping.json_                                                                     |
 
 ## Getting started
 
@@ -163,6 +164,10 @@ If you don't need the mapping of the department field or the budgetholder field 
 
 > [!IMPORTANT]
 > The branch lookup value `branch.lookupValue` is still mandatory.
+
+### Managing tasks permissions
+> [!IMPORTANT]
+> When managing tasks as permissions, we recommend you set concurrent actions to 1 to prevent timing issues. This is necessary because you can't update a task on an archived operator. When revoking the account access and the task permission at the same moment the operator could be left in the wrong state. This is not possible when concurrent actions are set to 1.
 
 ## Getting help
 
