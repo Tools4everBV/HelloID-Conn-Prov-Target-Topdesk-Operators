@@ -324,7 +324,7 @@ function Get-TopdeskOperatorByCorrelationAttribute {
         # Multiple records found, correlation
         $outputContext.AuditLogs.Add([PSCustomObject]@{
                 Action  = "CreateAccount"
-                Message = "Multiple [$($responseGet.Count)] operators found with [$CorrelationAttribute] [$($account.$CorrelationAttribute)]. Login names: [$($responseGet.tasLoginName -join ', ')]"
+                Message = "Multiple [$($responseGet.Count)] operators found with [$CorrelationField] [$($CorrelationValue)]. Login names: [$($responseGet.tasLoginName -join ', ')]"
                 IsError = $true
             })
     }
