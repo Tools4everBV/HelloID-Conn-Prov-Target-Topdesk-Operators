@@ -246,8 +246,8 @@ try {
 
         Write-Verbose "Revoking operator group permission $($pRef.Name) ($($pRef.id)) from ($($aRef))"
         $splatParams = @{
-            Uri     = "$BaseUrl/tas/api/operators/id/$($aRef)/filters/category"
-            Method  = 'DELETE'
+            Uri     = "$BaseUrl/tas/api/operators/id/$($aRef)/operatorgroups"
+            Method  = 'Delete'
             Headers = $authHeaders
             Body    = ConvertTo-Json -InputObject @(@{ id = $($pRef.id) }) -Depth 10
         }
