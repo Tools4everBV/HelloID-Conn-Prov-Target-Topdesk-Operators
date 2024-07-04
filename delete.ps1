@@ -1,11 +1,7 @@
 #####################################################
 # HelloID-Conn-Prov-Target-Topdesk-Operators-Delete
-#
-# Version: 3.0.0 | new-powershell-connector
+# PowerShell V2
 #####################################################
-
-# Set to true at start, because only when an error occurs it is set to false
-$outputContext.Success = $true
 
 # Set debug logging
 switch ($($actionContext.Configuration.isDebug)) {
@@ -17,6 +13,34 @@ switch ($($actionContext.Configuration.isDebug)) {
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
 #region functions
+function ConvertTo-TopDeskFlatObject {
+    param (
+        [Parameter(Mandatory = $true)]
+        [pscustomobject] $Object,
+        [string] $Prefix = ""
+    )
+ 
+    $result = [ordered]@{}
+ 
+    foreach ($property in $Object.PSObject.Properties) {
+        $name = if ($Prefix) { "$Prefix`_$($property.Name)" } else { $property.Name }
+ 
+        if ($null -ne $property.Value) {
+            if ($property.Value -is [pscustomobject]) {
+                $flattenedSubObject = ConvertTo-TopDeskFlatObject -Object $property.Value -Prefix $name
+                foreach ($subProperty in $flattenedSubObject.PSObject.Properties) {
+                    $result[$subProperty.Name] = [string]$subProperty.Value
+                }
+            }
+            else {
+                $result[$name] = [string]$property.Value
+            }
+        }
+    }
+ 
+    [PSCustomObject]$result
+}
+
 function Set-AuthorizationHeaders {
     param (
         [ValidateNotNullOrEmpty()]
@@ -96,7 +120,6 @@ function Get-TopdeskOperator {
 
         # Throw an error when account reference is empty
         $outputContext.AuditLogs.Add([PSCustomObject]@{
-                Action  = "DeleteAccount"
                 Message = "The account reference is empty. This is a scripting issue."
                 IsError = $true
             })
@@ -109,19 +132,18 @@ function Get-TopdeskOperator {
         Method  = 'GET'
         Headers = $Headers
     }
-    $operator = Invoke-TopdeskRestMethod @splatParams
-
-    # Check if only one result is returned
-    if ([string]::IsNullOrEmpty($operator)) {
-        $outputContext.AuditLogs.Add([PSCustomObject]@{
-                Action  = "DeleteAccount"
-                Message = "Operator with reference [$AccountReference)] is not found. If the operator is deleted, you might need to regrant the entitlement."
-                IsError = $true
-            })
+    try {
+        $operator = Invoke-TopdeskRestMethod @splatParams
     }
-    else {
-        Write-Output $operator
+    catch {
+        if ($_.Exception.Response.StatusCode -eq 404) {
+            $operator = $null
+        }
+        else {
+            throw
+        }
     }
+    Write-Output $operator
 }
 
 function Set-TopdeskOperatorArchiveStatus {
@@ -151,7 +173,6 @@ function Set-TopdeskOperatorArchiveStatus {
         # When the 'archiving reason' setting is not configured in the target connector configuration
         if ([string]::IsNullOrEmpty($ArchivingReason)) {
             $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    Action  = "DeleteAccount"
                     Message = "Configuration setting 'Archiving Reason' is empty. This is a configuration error."
                     IsError = $true
                 })
@@ -170,7 +191,6 @@ function Set-TopdeskOperatorArchiveStatus {
         # When the configured archiving reason is not found in Topdesk
         if ([string]::IsNullOrEmpty($archivingReasonObject.id)) {
             $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    Action  = "DeleteAccount"
                     Message = "Archiving reason [$ArchivingReason] not found in Topdesk"
                     IsError = $true
                 })
@@ -219,6 +239,14 @@ function Set-TopdeskOperator {
     )
 
     Write-Verbose "Updating operator"
+
+    # Difference between GET and POST/PATCH operator for the field [initials] <--> [firstInitials] 
+    # https://developers.topdesk.com/explorer/?page=supporting-files#/Operators/createOperator
+    if ($account.PSObject.Properties.Name -Contains 'initials') {
+        $account | Add-Member -MemberType NoteProperty -Name 'firstInitials' -Value $account.initials
+        $account.PSObject.Properties.Remove('initials')
+    } 
+
     $splatParams = @{
         Uri     = "$BaseUrl/tas/api/operators/id/$($TopdeskOperator.id)"
         Method  = 'PATCH'
@@ -251,24 +279,66 @@ try {
     }
     $TopdeskOperator = Get-TopdeskOperator @splatParamsOperator 
 
+    $outputContext.PreviousData = $TopdeskOperator
     #endregion lookup
 
-    #region Write
-    $action = 'Delete'
-    if (-Not($actionContext.DryRun -eq $true)) {
-        if ([string]::IsNullOrEmpty($TopdeskOperator)) {
-            $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    Action  = "DeleteAccount"
-                    Message = "Account with id [$($actionContext.References.Account)] successfully archived (skiped not found)"
-                    IsError = $false
-                })
+    #region Calulate action
+    if (-Not([string]::IsNullOrEmpty($TopdeskOperator))) {
+        # Only compare object if a account object exists
+        if (-Not([string]::IsNullOrEmpty($account))) {
+            # Flatten the JSON object
+            $accountDifferenceObject = ConvertTo-TopDeskFlatObject -Object $account
+            $accountReferenceObject = ConvertTo-TopDeskFlatObject -Object $TopdeskOperator
+            # Define properties to compare for update
+            $accountPropertiesToCompare = $accountDifferenceObject.PsObject.Properties.Name
+
+            $accountSplatCompareProperties = @{
+                ReferenceObject  = $accountReferenceObject.PSObject.Properties | Where-Object { $_.Name -in $accountPropertiesToCompare }
+                DifferenceObject = $accountDifferenceObject.PSObject.Properties | Where-Object { $_.Name -in $accountPropertiesToCompare }
+            }
+            if ($null -ne $accountSplatCompareProperties.ReferenceObject -and $null -ne $accountSplatCompareProperties.DifferenceObject) {
+                $accountPropertiesChanged = Compare-Object @accountSplatCompareProperties -PassThru
+                $accountOldProperties = $accountPropertiesChanged | Where-Object { $_.SideIndicator -eq "<=" }
+                $accountNewProperties = $accountPropertiesChanged | Where-Object { $_.SideIndicator -eq "=>" }
+            }
         }
+        if ($accountNewProperties) {
+            $action = 'UpdateAndDisable'
+            Write-Information "Account property(s) required to update: $($accountNewProperties.Name -join ', ')"
+        }
+        elseif ($TopdeskOperator.status -eq 'operator') {
+            $action = 'Disable'
+        }   
         else {
-            Write-Verbose "Archiving Topdesk operator for: [$($p.DisplayName)]"
+            $action = 'NoChanges'
+        }
+    }
+    else {
+        $action = 'NotFound' 
+    }        
+
+    Write-Information "Compared current account to mapped properties. Result: $action"
+    #endregion Calulate action
+
+    #region Write
+    switch ($action) {
+        'UpdateAndDisable' {
+            $accountChangedPropertiesObject = [PSCustomObject]@{
+                OldValues = @{}
+                NewValues = @{}
+            }
+        
+            foreach ($accountOldProperty in ($accountOldProperties | Where-Object { $_.Name -in $accountNewProperties.Name })) {
+                $accountChangedPropertiesObject.OldValues.$($accountOldProperty.Name) = $accountOldProperty.Value
+            }
+        
+            foreach ($accountNewProperty in $accountNewProperties) {
+                $accountChangedPropertiesObject.NewValues.$($accountNewProperty.Name) = $accountNewProperty.Value
+            }
 
             # Unarchive operator if required
             if ($TopdeskOperator.status -eq 'operatorArchived') {
-    
+
                 # Unarchive operator
                 $splatParamsOperatorUnarchive = @{
                     TopdeskOperator = [ref]$TopdeskOperator
@@ -277,9 +347,15 @@ try {
                     Archive         = $false
                     ArchivingReason = $actionContext.Configuration.operatorArchivingReason
                 }
-                Set-TopdeskOperatorArchiveStatus @splatParamsOperatorUnarchive
+
+                if (-Not($actionContext.DryRun -eq $true)) {
+                    Set-TopdeskOperatorArchiveStatus @splatParamsOperatorUnarchive
+                }
+                else {
+                    Write-Warning "DryRun would unarchive account with id [$($TopdeskOperator.id)] and dynamicName [($($TopdeskOperator.dynamicName))] for update"
+                }
             }
-    
+
             # Update TOPdesk operator
             $splatParamsOperatorUpdate = @{
                 TopdeskOperator = $TopdeskOperator
@@ -287,7 +363,13 @@ try {
                 Headers         = $authHeaders
                 BaseUrl         = $actionContext.Configuration.baseUrl
             }
-            $TopdeskOperatorUpdated = Set-TopdeskOperator @splatParamsOperatorUpdate
+
+            if (-Not($actionContext.DryRun -eq $true)) {
+                $TopdeskOperatorUpdated = Set-TopdeskOperator @splatParamsOperatorUpdate
+            }
+            else {
+                Write-Warning "DryRun would update account with id [$($TopdeskOperator.id)] and dynamicName [($($TopdeskOperator.dynamicName))]. Old values: $($accountChangedPropertiesObject.oldValues | ConvertTo-Json). New values: $($accountChangedPropertiesObject.newValues | ConvertTo-Json)"
+            }
     
             # Always archive operator in the delete process
             # Archive operator
@@ -298,18 +380,76 @@ try {
                 Archive         = $true
                 ArchivingReason = $actionContext.Configuration.operatorArchivingReason
             }
-            Set-TopdeskOperatorArchiveStatus @splatParamsOperatorArchive
+
+            if (-Not($actionContext.DryRun -eq $true)) {
+                Set-TopdeskOperatorArchiveStatus @splatParamsOperatorArchive
+            }
+            else {
+                Write-Warning "DryRun would archive account with id [$($TopdeskOperator.id)] and dynamicName [($($TopdeskOperator.dynamicName))]"
+            }
     
             $outputContext.Data = $TopdeskOperatorUpdated
-            $outputContext.PreviousData = $TopdeskOperator
+
+            if (-Not($actionContext.DryRun -eq $true)) {
+                Write-Information "Account with id [$($TopdeskOperator.id)] and dynamicName [($($TopdeskOperator.dynamicName))] successfully updated and archived. Old values: $($accountChangedPropertiesObject.oldValues | ConvertTo-Json). New values: $($accountChangedPropertiesObject.newValues | ConvertTo-Json)"
+
+                $outputContext.AuditLogs.Add([PSCustomObject]@{
+                        Message = "Account with id [$($TopdeskOperator.id)] and dynamicName [($($TopdeskOperator.dynamicName))] successfully updated and archived. Old values: $($accountChangedPropertiesObject.oldValues | ConvertTo-Json). New values: $($accountChangedPropertiesObject.newValues | ConvertTo-Json)"
+                        IsError = $false
+                    })
+            }
+
+            break
+        }
+    
+        'Disable' {
+            # Archive operator
+            $splatParamsOperatorArchive = @{
+                TopdeskOperator = [ref]$TopdeskOperator
+                Headers         = $authHeaders
+                BaseUrl         = $actionContext.Configuration.baseUrl
+                Archive         = $true
+                ArchivingReason = $actionContext.Configuration.operatorArchivingReason
+            }
+
+            if (-Not($actionContext.DryRun -eq $true)) {
+                Set-TopdeskOperatorArchiveStatus @splatParamsOperatorArchive
+
+                $outputContext.AuditLogs.Add([PSCustomObject]@{
+                        Message = "Account with id [$($TopdeskOperator.id)] and dynamicName [($($TopdeskOperator.dynamicName))] successfully disabled"
+                        IsError = $false
+                    })
+            }
+            else {
+                # Add an auditMessage showing what will happen during enforcement
+                Write-Warning "DryRun: Would disable account with id [$($TopdeskOperator.id)] and dynamicName [($($TopdeskOperator.dynamicName))]"
+            }
+
+            $outputContext.Data = $TopdeskOperator
+        }
+    
+        'NoChanges' {
+            Write-Information "Account with id [$($TopdeskOperator.id)] and dynamicName [($($TopdeskOperator.dynamicName))] already disabled"
 
             $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    Action  = "DeleteAccount"
-                    Message = "Account with id [$($TopdeskOperator.id)] successfully archived"
+                    Message = "Account with id [$($TopdeskOperator.id)] and dynamicName [($($TopdeskOperator.dynamicName))] already disabled"
+                    IsError = $false
+                }) 
+            break
+        }
+    
+        'NotFound' {        
+            Write-Information "Account with id [$($actionContext.References.Account)] successfully archived (skiped not found)"
+            
+            $outputContext.AuditLogs.Add([PSCustomObject]@{
+                    Message = "Account with id [$($actionContext.References.Account)] successfully archived (skiped not found)"
                     IsError = $false
                 })
+
+            break
         }
     }
+    #endregion Write 
 }
 catch {
     $ex = $PSItem
@@ -330,16 +470,17 @@ catch {
     # Only log when there are no lookup values, as these generate their own audit message
     if (-Not($ex.Exception.Message -eq 'Error(s) occured while looking up required values')) {
         $outputContext.AuditLogs.Add([PSCustomObject]@{
-                Action  = "DeleteAccount"
                 Message = $errorMessage
                 IsError = $true
             })
     }
 }
 finally {
-    # Check if auditLogs contains errors, if errors are found, set success to false
+    # Check if auditLogs contains errors, if no errors are found, set success to true
     if ($outputContext.AuditLogs.IsError -contains $true) {
         $outputContext.Success = $false
     }
+    else {
+        $outputContext.Success = $true
+    }
 }
-#endregion Write

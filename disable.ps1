@@ -1,11 +1,7 @@
 #####################################################
 # HelloID-Conn-Prov-Target-Topdesk-Operators-Disable
-#
-# Version: 3.0.0 | new-powershell-connector
+# PowerShell V2
 #####################################################
-
-# Set to true at start, because only when an error occurs it is set to false
-$outputContext.Success = $true
 
 # Set debug logging
 switch ($($actionContext.Configuration.isDebug)) {
@@ -96,7 +92,6 @@ function Get-TopdeskOperator {
 
         # Throw an error when account reference is empty
         $outputContext.AuditLogs.Add([PSCustomObject]@{
-                Action  = "DisableAccount"
                 Message = "The account reference is empty. This is a scripting issue."
                 IsError = $true
             })
@@ -109,19 +104,18 @@ function Get-TopdeskOperator {
         Method  = 'GET'
         Headers = $Headers
     }
-    $operator = Invoke-TopdeskRestMethod @splatParams
-
-    # Check if only one result is returned
-    if ([string]::IsNullOrEmpty($operator)) {
-        $outputContext.AuditLogs.Add([PSCustomObject]@{
-                Action  = "DisableAccount"
-                Message = "Operator with reference [$AccountReference)] is not found. If the operator is deleted, you might need to regrant the entitlement."
-                IsError = $true
-            })
+    try {
+        $operator = Invoke-TopdeskRestMethod @splatParams
     }
-    else {
-        Write-Output $operator
+    catch {
+        if ($_.Exception.Response.StatusCode -eq 404) {
+            $operator = $null
+        }
+        else {
+            throw
+        }
     }
+    Write-Output $operator
 }
 
 function Set-TopdeskOperatorArchiveStatus {
@@ -151,7 +145,6 @@ function Set-TopdeskOperatorArchiveStatus {
         # When the 'archiving reason' setting is not configured in the target connector configuration
         if ([string]::IsNullOrEmpty($ArchivingReason)) {
             $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    Action  = "DisableAccount"
                     Message = "Configuration setting 'Archiving Reason' is empty. This is a configuration error."
                     IsError = $true
                 })
@@ -170,7 +163,6 @@ function Set-TopdeskOperatorArchiveStatus {
         # When the configured archiving reason is not found in Topdesk
         if ([string]::IsNullOrEmpty($archivingReasonObject.id)) {
             $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    Action  = "DisableAccount"
                     Message = "Archiving reason [$ArchivingReason] not found in Topdesk"
                     IsError = $true
                 })
@@ -220,57 +212,78 @@ try {
     }
     $TopdeskOperator = Get-TopdeskOperator @splatParamsOperator
 
+    $outputContext.PreviousData = $TopdeskOperator
+
     if ($outputContext.AuditLogs.isError -contains - $true) {
         Throw "Error(s) occured while looking up required values"
     }
     #endregion lookup
 
-    # region write
-    $action = 'Disable'
-    if (-Not($actionContext.DryRun -eq $true)) {
-
-        Write-Verbose "Archiving Topdesk operator for: [$($personContext.Person.DisplayName)]"
-
-        # Archive operator if required
+    #region Calulate action
+    if (-Not([string]::IsNullOrEmpty($TopdeskOperator))) {
         if ($TopdeskOperator.status -eq 'operator') {
+            $action = 'Disable'
+        }   
+        else {
+            $action = 'NoChanges'
+        }
+    }
+    else {
+        $action = 'NotFound' 
+    }        
 
+    Write-Information "Compared current account to mapped properties. Result: $action"
+    #endregion Calulate action
+
+    # region write
+    switch ($action) {
+        'Disable' {
             # Archive operator
-            $splatParamsOperatorUnarchive = @{
+            $splatParamsOperatorArchive = @{
                 TopdeskOperator = [ref]$TopdeskOperator
                 Headers         = $authHeaders
                 BaseUrl         = $actionContext.Configuration.baseUrl
                 Archive         = $true
                 ArchivingReason = $actionContext.Configuration.operatorArchivingReason
-
             }
-            Set-TopdeskOperatorArchiveStatus @splatParamsOperatorUnarchive
+
+            if (-Not($actionContext.DryRun -eq $true)) {
+                Set-TopdeskOperatorArchiveStatus @splatParamsOperatorArchive
+
+                $outputContext.AuditLogs.Add([PSCustomObject]@{
+                        Message = "Account with id [$($TopdeskOperator.id)] and dynamicName [($($TopdeskOperator.dynamicName))] successfully disabled"
+                        IsError = $false
+                    })
+            }
+            else {
+                # Add an auditMessage showing what will happen during enforcement
+                Write-Warning "DryRun: Would disable account with id [$($TopdeskOperator.id)] and dynamicName [($($TopdeskOperator.dynamicName))]"
+            }
+
+            $outputContext.Data = $TopdeskOperator
+        }
+
+        'NoChanges' {
+            Write-Information "Account with id [$($TopdeskOperator.id)] and dynamicName [($($TopdeskOperator.dynamicName))] already disabled"
 
             $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    Action  = "DisableAccount"
-                    Message = "Account with id [$($TopdeskOperator.id)] successfully disabled"
-                    IsError = $false
-                })
-        }
-        else {
-            $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    Action  = "DisableAccount"
-                    Message = "Account with id [$($TopdeskOperator.id)] successfully disabled (already disabled)"
+                    Message = "Account with id [$($TopdeskOperator.id)] and dynamicName [($($TopdeskOperator.dynamicName))] already disabled"
                     IsError = $false
                 }) 
+            break
         }
 
-        $outputContext.Data = $TopdeskOperator
-        $outputContext.PreviousData = $TopdeskOperator
+        'NotFound' {              
+            Write-Information "Account with id [$($actionContext.References.Account)] not found"
+
+            $outputContext.AuditLogs.Add([PSCustomObject]@{
+                    Message = "Account with id [$($actionContext.References.Account)] not found"
+                    IsError = $true
+                })
+            break
+        }
+        #endregion Write
     }
-    else {
-        # Add an auditMessage showing what will happen during enforcement
-        Write-Warning "DryRun: Would disable account [$($TopdeskOperator.dynamicName) ($($TopdeskOperator.Id))]"
-        $outputContext.AuditLogs.Add([PSCustomObject]@{
-                Action  = "DisableAccount"
-                Message = "DryRun: Would disable account [$($TopdeskOperator.dynamicName) ($($TopdeskOperator.Id))]"
-                IsError = $false
-            })
-    }   
 }
 catch {
     $ex = $PSItem
@@ -291,16 +304,17 @@ catch {
     # Only log when there are no lookup values, as these generate their own audit message
     if (-Not($ex.Exception.Message -eq 'Error(s) occured while looking up required values')) {
         $outputContext.AuditLogs.Add([PSCustomObject]@{
-                Action  = "DisableAccount"
                 Message = $errorMessage
                 IsError = $true
             })
     }
 }
 finally {
-    # Check if auditLogs contains errors, if errors are found, set success to false
+    # Check if auditLogs contains errors, if no errors are found, set success to true
     if ($outputContext.AuditLogs.IsError -contains $true) {
         $outputContext.Success = $false
     }
+    else {
+        $outputContext.Success = $true
+    }
 }
-#endregion Write

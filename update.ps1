@@ -1,14 +1,7 @@
 #####################################################
 # HelloID-Conn-Prov-Target-Topdesk-Operators-Update
-#
-# Version: 3.0.0 | new-powershell-connector
+# PowerShell V2
 #####################################################
-
-# Set to true at start, because only when an error occurs it is set to false
-$outputContext.Success = $true
-
-# AccountReference must have a value
-$outputContext.AccountReference = $actionContext.References.Account
 
 # Set debug logging
 switch ($($actionContext.Configuration.isDebug)) {
@@ -20,6 +13,34 @@ switch ($($actionContext.Configuration.isDebug)) {
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
 #region functions
+function ConvertTo-TopDeskFlatObject {
+    param (
+        [Parameter(Mandatory = $true)]
+        [pscustomobject] $Object,
+        [string] $Prefix = ""
+    )
+ 
+    $result = [ordered]@{}
+ 
+    foreach ($property in $Object.PSObject.Properties) {
+        $name = if ($Prefix) { "$Prefix`_$($property.Name)" } else { $property.Name }
+ 
+        if ($null -ne $property.Value) {
+            if ($property.Value -is [pscustomobject]) {
+                $flattenedSubObject = ConvertTo-TopDeskFlatObject -Object $property.Value -Prefix $name
+                foreach ($subProperty in $flattenedSubObject.PSObject.Properties) {
+                    $result[$subProperty.Name] = [string]$subProperty.Value
+                }
+            }
+            else {
+                $result[$name] = [string]$property.Value
+            }
+        }
+    }
+ 
+    [PSCustomObject]$result
+}
+
 function Set-AuthorizationHeaders {
     param (
         [ValidateNotNullOrEmpty()]
@@ -95,20 +116,18 @@ function Get-TopdeskBranch {
         [ref]$Account
     )
 
-    # Check if branch.lookupValue property exists in the account object set in the mapping
-    if (-not($account.branch.PSObject.Properties.Name -contains 'lookupValue')) {
+    # Check if branch.name property exists in the account object set in the mapping
+    if (-not($account.branch.PSObject.Properties.Name -contains 'name')) {
         $outputContext.AuditLogs.Add([PSCustomObject]@{
-                Action  = "UpdateAccount"
-                Message = "Requested to lookup branch, but [branch.lookupValue] is missing. This is a mapping issue."
+                Message = "Requested to lookup branch, but [branch.name] is missing. This is a mapping issue."
                 IsError = $true
             })
         return
     }
         
-    if ([string]::IsNullOrEmpty($Account.branch.lookupValue)) {
+    if ([string]::IsNullOrEmpty($Account.branch.name)) {
         # As branch is always a required field,  no branch in lookup value = error
         $outputContext.AuditLogs.Add([PSCustomObject]@{
-                Action  = "UpdateAccount"
                 Message = "The lookup value for Branch is empty but it's a required field."
                 IsError = $true
             })
@@ -121,19 +140,18 @@ function Get-TopdeskBranch {
             Headers = $Headers
         }
         $responseGet = Invoke-TopdeskRestMethod @splatParams
-        $branch = $responseGet | Where-object name -eq $Account.branch.lookupValue
+        $branch = $responseGet | Where-object name -eq $Account.branch.name
         # When branch is not found in Topdesk
         if ([string]::IsNullOrEmpty($branch.id)) {
             # As branch is a required field, if no branch is found, an error is logged
             $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    Action  = "UpdateAccount"
-                    Message = "Branch with name [$($Account.branch.lookupValue)] isn't found in Topdesk but it's a required field."
+                    Message = "Branch with name [$($Account.branch.name)] isn't found in Topdesk but it's a required field."
                     IsError = $true
                 })
         }
         else {
             # Branch is found in Topdesk, set in Topdesk
-            $Account.branch.PSObject.Properties.Remove('lookupValue')
+            $Account.branch.PSObject.Properties.Remove('name')
             $Account.branch | Add-Member -MemberType NoteProperty -Name 'id' -Value $branch.id
         }
     }
@@ -158,12 +176,11 @@ function Get-TopdeskDepartment {
         [ref]$Account
     )
 
-    # When department.lookupValue is null or empty (it is empty in the source or it's a mapping error)
-    if ([string]::IsNullOrEmpty($Account.department.lookupValue)) {
+    # When department.name is null or empty (it is empty in the source or it's a mapping error)
+    if ([string]::IsNullOrEmpty($Account.department.name)) {
         if ([System.Convert]::ToBoolean($LookupErrorHrDepartment)) {
             # True, no department in lookup value = throw error
             $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    Action  = "UpdateAccount"
                     Message = "The lookup value for Department is empty and the connector is configured to stop when this happens."
                     IsError = $true
                 })
@@ -171,7 +188,7 @@ function Get-TopdeskDepartment {
         else {
             # False, no department in lookup value = clear value
             Write-Verbose "Clearing department. (lookupErrorHrDepartment = False)"
-            $Account.department.PSObject.Properties.Remove('lookupValue')
+            $Account.department.PSObject.Properties.Remove('name')
             $Account.department | Add-Member -NotePropertyName id -NotePropertyValue $null
         }
     }
@@ -183,28 +200,27 @@ function Get-TopdeskDepartment {
             Headers = $Headers
         }
         $responseGet = Invoke-TopdeskRestMethod @splatParams
-        $department = $responseGet | Where-object name -eq $Account.department.lookupValue
+        $department = $responseGet | Where-object name -eq $Account.department.name
 
         # When department is not found in Topdesk
         if ([string]::IsNullOrEmpty($department.id)) {
             if ([System.Convert]::ToBoolean($LookupErrorTopdesk)) {
                 # True, no department found = throw error
                 $outputContext.AuditLogs.Add([PSCustomObject]@{
-                        Action  = "UpdateAccount"
-                        Message = "Department [$($Account.department.lookupValue)] not found in Topdesk and the connector is configured to stop when this happens."
+                        Message = "Department [$($Account.department.name)] not found in Topdesk and the connector is configured to stop when this happens."
                         IsError = $true
                     })
             }
             else {
                 # False, no department found = remove department field (leave empty on creation or keep current value on update)
-                $Account.department.PSObject.Properties.Remove('lookupValue')
+                $Account.department.PSObject.Properties.Remove('name')
                 $Account.PSObject.Properties.Remove('department')
                 Write-Verbose "Not overwriting or setting department as it can't be found in Topdesk. (lookupErrorTopdesk = False)"
             }
         }
         else {
             # Department is found in Topdesk, set in Topdesk
-            $Account.department.PSObject.Properties.Remove('lookupValue')
+            $Account.department.PSObject.Properties.Remove('name')
             $Account.department | Add-Member -MemberType NoteProperty -Name 'id' -Value $department.id
             # $Account.department.Add('id', $department.id)
         }
@@ -231,12 +247,11 @@ function Get-TopdeskBudgetHolder {
         [ref]$Account
     )
 
-    # When budgetholder.lookupValue is null or empty (it is empty in the source or it's a mapping error)
-    if ([string]::IsNullOrEmpty($Account.budgetHolder.lookupValue)) {
+    # When budgetholder.name is null or empty (it is empty in the source or it's a mapping error)
+    if ([string]::IsNullOrEmpty($Account.budgetHolder.name)) {
         if ([System.Convert]::ToBoolean($lookupErrorHrBudgetHolder)) {
             # True, no budgetholder in lookup value = throw error
             $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    Action  = "UpdateAccount"
                     Message = "The lookup value for budgetholder is empty and the connector is configured to stop when this happens."
                     IsError = $true
                 })
@@ -244,7 +259,7 @@ function Get-TopdeskBudgetHolder {
         else {
             # False, no budgetholder in lookup value = clear value
             Write-Verbose "Clearing budgetholder. (lookupErrorHrBudgetHolder = False)"
-            $Account.budgetHolder.PSObject.Properties.Remove('lookupValue')
+            $Account.budgetHolder.PSObject.Properties.Remove('name')
             $Account.budgetHolder | Add-Member -NotePropertyName id -NotePropertyValue $null
         }
     }
@@ -257,28 +272,27 @@ function Get-TopdeskBudgetHolder {
             Headers = $Headers
         }
         $responseGet = Invoke-TopdeskRestMethod @splatParams
-        $budgetHolder = $responseGet | Where-object name -eq $Account.budgetHolder.lookupValue
+        $budgetHolder = $responseGet | Where-object name -eq $Account.budgetHolder.name
 
         # When budgetholder is not found in Topdesk
         if ([string]::IsNullOrEmpty($budgetHolder.id)) {
             if ([System.Convert]::ToBoolean($lookupErrorTopdesk)) {
                 # True, no budgetholder found = throw error
                 $outputContext.AuditLogs.Add([PSCustomObject]@{
-                        Action  = "UpdateAccount"
-                        Message = "Budgetholder [$($Account.budgetHolder.lookupValue)] not found in Topdesk and the connector is configured to stop when this happens."
+                        Message = "Budgetholder [$($Account.budgetHolder.name)] not found in Topdesk and the connector is configured to stop when this happens."
                         IsError = $true
                     })
             }
             else {
                 # False, no budgetholder found = remove budgetholder field (leave empty on creation or keep current value on update)
-                $Account.budgetHolder.PSObject.Properties.Remove('lookupValue')
+                $Account.budgetHolder.PSObject.Properties.Remove('name')
                 $Account.PSObject.Properties.Remove('budgetHolder')
                 Write-Verbose "Not overwriting or setting budgetholder as it can't be found in Topdesk. (lookupErrorTopdesk = False)"
             }
         }
         else {
             # Budgetholder is found in Topdesk, set in Topdesk
-            $Account.budgetHolder.PSObject.Properties.Remove('lookupValue')
+            $Account.budgetHolder.PSObject.Properties.Remove('name')
             $Account.budgetHolder | Add-Member -MemberType NoteProperty -Name 'id' -Value $budgetHolder.id
         }
     }
@@ -303,7 +317,6 @@ function Get-TopdeskOperator {
 
         # Throw an error when account reference is empty
         $outputContext.AuditLogs.Add([PSCustomObject]@{
-                Action  = "UpdateAccount"
                 Message = "The account reference is empty. This is a scripting issue."
                 IsError = $true
             })
@@ -316,19 +329,18 @@ function Get-TopdeskOperator {
         Method  = 'GET'
         Headers = $Headers
     }
-    $operator = Invoke-TopdeskRestMethod @splatParams
-
-    # Check if only one result is returned
-    if ([string]::IsNullOrEmpty($operator)) {
-        $outputContext.AuditLogs.Add([PSCustomObject]@{ 
-                Action  = "UpdateAccount"
-                Message = "Operator with reference [$AccountReference)] is not found. If the operator is deleted, you might need to regrant the entitlement."
-                IsError = $true
-            })
+    try {
+        $operator = Invoke-TopdeskRestMethod @splatParams
     }
-    else {
-        Write-Output $operator
+    catch {
+        if ($_.Exception.Response.StatusCode -eq 404) {
+            $operator = $null
+        }
+        else {
+            throw
+        }
     }
+    Write-Output $operator
 }
 
 function Set-TopdeskOperatorArchiveStatus {
@@ -358,7 +370,6 @@ function Set-TopdeskOperatorArchiveStatus {
         # When the 'archiving reason' setting is not configured in the target connector configuration
         if ([string]::IsNullOrEmpty($ArchivingReason)) {
             $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    Action  = "UpdateAccount"
                     Message = "Configuration setting 'Archiving Reason' is empty. This is a configuration error."
                     IsError = $true
                 })
@@ -377,7 +388,6 @@ function Set-TopdeskOperatorArchiveStatus {
         # When the configured archiving reason is not found in Topdesk
         if ([string]::IsNullOrEmpty($archivingReasonObject.id)) {
             $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    Action  = "UpdateAccount"
                     Message = "Archiving reason [$ArchivingReason] not found in Topdesk"
                     IsError = $true
                 })
@@ -426,6 +436,14 @@ function Set-TopdeskOperator {
     )
 
     Write-Verbose "Updating operator"
+
+    # Difference between GET and POST/PATCH operator for the field [initials] <--> [firstInitials] 
+    # https://developers.topdesk.com/explorer/?page=supporting-files#/Operators/createOperator
+    if ($account.PSObject.Properties.Name -Contains 'initials') {
+        $account | Add-Member -MemberType NoteProperty -Name 'firstInitials' -Value $account.initials
+        $account.PSObject.Properties.Remove('initials')
+    } 
+
     $splatParams = @{
         Uri     = "$BaseUrl/tas/api/operators/id/$($TopdeskOperator.id)"
         Method  = 'PATCH'
@@ -462,7 +480,7 @@ try {
     }
     Get-TopdeskBranch @splatParamsBranch
 
-    if ($Account.department.PSObject.Properties.Name -Contains 'lookupValue') {
+    if ($Account.department.PSObject.Properties.Name -Contains 'name') {
         # Resolve department id
         $splatParamsDepartment = @{
             Account                 = [ref]$account
@@ -474,10 +492,10 @@ try {
         Get-TopdeskDepartment @splatParamsDepartment  
     }
     else {
-        write-verbose "Mapping of [department.lookupValue] is missing to lookup the department in Topdesk. Action skipped"
+        write-verbose "Mapping of [department.name] is missing to lookup the department in Topdesk. Action skipped"
     }
 
-    if ($Account.budgetHolder.PSObject.Properties.Name -Contains 'lookupValue') {
+    if ($Account.budgetHolder.PSObject.Properties.Name -Contains 'name') {
         # Resolve budgetholder id
         $splatParamsBudgetHolder = @{
             Account                   = [ref]$account
@@ -489,7 +507,7 @@ try {
         Get-TopdeskBudgetholder @splatParamsBudgetHolder
     }
     else {
-        write-verbose "Mapping of [budgetHolder.lookupValue] is missing to lookup the budgetHolder in Topdesk. Action skipped"
+        write-verbose "Mapping of [budgetHolder.name] is missing to lookup the budgetHolder in Topdesk. Action skipped"
     }
 
     # get operator
@@ -500,12 +518,14 @@ try {
     }
     $TopdeskOperator = Get-TopdeskOperator @splatParamsOperator        
 
+    $outputContext.PreviousData = $TopdeskOperator
+
     if ($outputContext.AuditLogs.isError -contains - $true) {
         Throw "Error(s) occured while looking up required values"
     }
     #endregion lookup
 
-    #region Write
+    #region remove value for update
     if (-not($actionContext.AccountCorrelated -eq $true)) {
         # Example to only set certain attributes when create-correlate. If you don't want to update certain values, you need to remove them here.    
         # $account.PSObject.Properties.Remove('email')
@@ -513,68 +533,155 @@ try {
         # $account.PSObject.Properties.Remove('loginName')
         # $account.PSObject.Properties.Remove('exchangeAccount')
     }
+    #endregion remove value for update
 
-    $action = 'Update'
-    if (-Not($actionContext.DryRun -eq $true)) {
-        Write-Verbose "Updating Topdesk operator for: [$($p.DisplayName)]"
- 
-        # Unarchive operator if required
-        if ($TopdeskOperator.status -eq 'operatorArchived') {
+    #region Calulate action
+    if (-Not([string]::IsNullOrEmpty($TopdeskOperator))) {
+        # Flatten the JSON object
+        $accountDifferenceObject = ConvertTo-TopDeskFlatObject -Object $account
+        $accountReferenceObject = ConvertTo-TopDeskFlatObject -Object $TopdeskOperator
 
-            # Unarchive operator
-            $shouldArchive = $true
-            $splatParamsOperatorUnarchive = @{
-                TopdeskOperator = [ref]$TopdeskOperator
-                Headers         = $authHeaders
-                BaseUrl         = $actionContext.Configuration.baseUrl
-                Archive         = $false
-                ArchivingReason = $actionContext.Configuration.operatorArchivingReason
-            }
-            Set-TopdeskOperatorArchiveStatus @splatParamsOperatorUnarchive
+        # Define properties to compare for update
+        $accountPropertiesToCompare = $accountDifferenceObject.PsObject.Properties.Name
+
+        $accountSplatCompareProperties = @{
+            ReferenceObject  = $accountReferenceObject.PSObject.Properties | Where-Object { $_.Name -in $accountPropertiesToCompare }
+            DifferenceObject = $accountDifferenceObject.PSObject.Properties | Where-Object { $_.Name -in $accountPropertiesToCompare }
+        }
+        if ($null -ne $accountSplatCompareProperties.ReferenceObject -and $null -ne $accountSplatCompareProperties.DifferenceObject) {
+            $accountPropertiesChanged = Compare-Object @accountSplatCompareProperties -PassThru
+            $accountOldProperties = $accountPropertiesChanged | Where-Object { $_.SideIndicator -eq "<=" }
+            $accountNewProperties = $accountPropertiesChanged | Where-Object { $_.SideIndicator -eq "=>" }
         }
 
-        # Update TOPdesk operator
-        $splatParamsOperatorUpdate = @{
-            TopdeskOperator = $TopdeskOperator
-            Account         = $account
-            Headers         = $authHeaders
-            BaseUrl         = $actionContext.Configuration.baseUrl
+        if ($accountNewProperties) {
+            $action = 'Update'
+            Write-Information "Account property(s) required to update: $($accountNewProperties.Name -join ', ')"
         }
-        $TopdeskOperatorUpdated = Set-TopdeskOperator @splatParamsOperatorUpdate
-
-        # As the update process could be started for an inactive HelloID operator, the user return should be archived state
-        if ($shouldArchive) {
-
-            # Archive operator
-            $splatParamsOperatorArchive = @{
-                TopdeskOperator = [ref]$TopdeskOperator
-                Headers         = $authHeaders
-                BaseUrl         = $actionContext.Configuration.baseUrl
-                Archive         = $true
-                ArchivingReason = $actionContext.Configuration.operatorArchivingReason
-            }
-            Set-TopdeskOperatorArchiveStatus @splatParamsOperatorArchive
-        }
-
-        $outputContext.AccountReference = $TopdeskOperator.id
-        $outputContext.Data = $TopdeskOperatorUpdated
-        $outputContext.PreviousData = $TopdeskOperator
-
-        $outputContext.AuditLogs.Add([PSCustomObject]@{
-                Action  = "UpdateAccount"
-                Message = "Account with id [$($TopdeskOperator.id)] successfully updated"
-                IsError = $false
-            })
-    }
+        else {
+            $action = 'NoChanges'
+        }        
+    }    
     else {
-        # Add an auditMessage showing what will happen during enforcement
-        Write-Warning "DryRun: Would update to account [$($TopdeskOperator.dynamicName) ($($TopdeskOperator.Id))]"
-        $outputContext.AuditLogs.Add([PSCustomObject]@{
-                Action  = "UpdateAccount"
-                Message = "DryRun: Would update to account [$($TopdeskOperator.dynamicName) ($($TopdeskOperator.Id))]"
-                IsError = $false
-            })
-    } 
+        $action = 'NotFound' 
+    }     
+
+    Write-Information "Compared current account to mapped properties. Result: $action"
+    #endregion Calulate action
+
+    #region Write
+    switch ($action) {
+        'Update' {
+            $accountChangedPropertiesObject = [PSCustomObject]@{
+                OldValues = @{}
+                NewValues = @{}
+            }
+        
+            foreach ($accountOldProperty in ($accountOldProperties | Where-Object { $_.Name -in $accountNewProperties.Name })) {
+                $accountChangedPropertiesObject.OldValues.$($accountOldProperty.Name) = $accountOldProperty.Value
+            }
+        
+            foreach ($accountNewProperty in $accountNewProperties) {
+                $accountChangedPropertiesObject.NewValues.$($accountNewProperty.Name) = $accountNewProperty.Value
+            }
+
+            # Unarchive operator if required
+            if ($TopdeskOperator.status -eq 'operatorArchived') {
+
+                # Unarchive operator
+                $shouldArchive = $true
+                $splatParamsOperatorUnarchive = @{
+                    TopdeskOperator = [ref]$TopdeskOperator
+                    Headers         = $authHeaders
+                    BaseUrl         = $actionContext.Configuration.baseUrl
+                    Archive         = $false
+                    ArchivingReason = $actionContext.Configuration.operatorArchivingReason
+                }
+
+                if (-Not($actionContext.DryRun -eq $true)) {
+                    Set-TopdeskOperatorArchiveStatus @splatParamsOperatorUnarchive
+                }
+                else {
+                    Write-Warning "DryRun would unarchive account with id [$($TopdeskOperator.id)] and dynamicName [($($TopdeskOperator.dynamicName))] for update"
+                }
+            }
+   
+            # Update TOPdesk operator
+            $splatParamsOperatorUpdate = @{
+                TopdeskOperator = $TopdeskOperator
+                Account         = $account
+                Headers         = $authHeaders
+                BaseUrl         = $actionContext.Configuration.baseUrl
+            }
+
+            if (-Not($actionContext.DryRun -eq $true)) {
+                $TopdeskOperatorUpdated = Set-TopdeskOperator @splatParamsOperatorUpdate
+            }
+            else {
+                Write-Warning "DryRun would update account with id [$($TopdeskOperator.id)] and dynamicName [($($TopdeskOperator.dynamicName))]. Old values: $($accountChangedPropertiesObject.oldValues | ConvertTo-Json). New values: $($accountChangedPropertiesObject.newValues | ConvertTo-Json)"
+            }
+
+            # As the update process could be started for an inactive HelloID operator, the user return should be archived state
+            if ($shouldArchive) {
+
+                # Archive operator
+                $splatParamsOperatorArchive = @{
+                    TopdeskOperator = [ref]$TopdeskOperator
+                    Headers         = $authHeaders
+                    BaseUrl         = $actionContext.Configuration.baseUrl
+                    Archive         = $true
+                    ArchivingReason = $actionContext.Configuration.operatorArchivingReason
+                }
+
+                if (-Not($actionContext.DryRun -eq $true)) {
+                    Set-TopdeskOperatorArchiveStatus @splatParamsOperatorArchive
+                }
+                else {
+                    Write-Warning "DryRun would re-archive account with id [$($TopdeskOperator.id)] and dynamicName [($($TopdeskOperator.dynamicName))] after update"
+                }
+            }
+
+            $outputContext.AccountReference = $TopdeskOperator.id
+            $outputContext.Data = $TopdeskOperatorUpdated
+
+            if (-Not($actionContext.DryRun -eq $true)) {
+                Write-Information "Account with id [$($TopdeskOperator.id)] and dynamicName [($($TopdeskOperator.dynamicName))] successfully updated. Old values: $($accountChangedPropertiesObject.oldValues | ConvertTo-Json). New values: $($accountChangedPropertiesObject.newValues | ConvertTo-Json)"
+
+                $outputContext.AuditLogs.Add([PSCustomObject]@{
+                        Message = "Account with id [$($TopdeskOperator.id)] and dynamicName [($($TopdeskOperator.dynamicName))] successfully updated. Old values: $($accountChangedPropertiesObject.oldValues | ConvertTo-Json). New values: $($accountChangedPropertiesObject.newValues | ConvertTo-Json)"
+                        IsError = $false
+                    })
+            }
+        }
+        
+        'NoChanges' {        
+            $outputContext.AccountReference = $TopdeskOperator.id
+            $outputContext.Data = $actionContext.Data
+            $outputContext.PreviousData = $actionContext.Data
+
+            Write-Information "Account with id [$($TopdeskOperator.id)] successfully checked. No changes required"
+
+            # AuditLog is skipped because $outputContext.Data & $outputContext.PreviousData are the same. If auditlog is required please change this variables above
+            # $outputContext.AuditLogs.Add([PSCustomObject]@{
+            #         Message = "Account with id [$($TopdeskOperator.id)] and dynamicName [($($TopdeskOperator.dynamicName))] successfully checked. No changes required"
+            #         IsError = $false
+            #     })
+
+            break
+        }
+
+        'NotFound' {                
+            Write-Information "Account with id [$($actionContext.References.Account)] is not found. If the person is deleted, you might need to regrant the entitlement."
+
+            $outputContext.AuditLogs.Add([PSCustomObject]@{
+                    Message = "Account with id [$($actionContext.References.Account)] is not found. If the person is deleted, you might need to regrant the entitlement."
+                    IsError = $true
+                })
+
+            break
+        }
+    }
+    #endregion Write
 }
 catch {
     $ex = $PSItem
@@ -595,16 +702,17 @@ catch {
     # Only log when there are no lookup values, as these generate their own audit message
     if (-Not($ex.Exception.Message -eq 'Error(s) occured while looking up required values')) {
         $outputContext.AuditLogs.Add([PSCustomObject]@{
-                Action  = "UpdateAccount"
                 Message = $errorMessage
                 IsError = $true
             })
     }
 }
 finally {
-    # Check if auditLogs contains errors, if errors are found, set success to false
+    # Check if auditLogs contains errors, if no errors are found, set success to true
     if ($outputContext.AuditLogs.IsError -contains $true) {
         $outputContext.Success = $false
     }
+    else {
+        $outputContext.Success = $true
+    }
 }
-#endregion Write

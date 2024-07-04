@@ -113,8 +113,8 @@
       ]
     },
     {
-      "Name": "budgetHolder.lookupValue",
-      "Description": "",
+      "Name": "budgetHolder.name",
+      "Description": "Removing this field will skip looking up and updating the budgetHolder field",
       "Type": "Text",
       "MappingActions": [
         {
@@ -130,8 +130,8 @@
       ]
     },
     {
-      "Name": "department.lookupValue",
-      "Description": "",
+      "Name": "department.name",
+      "Description": "Removing this field will skip looking up and updating the department field",
       "Type": "Text",
       "MappingActions": [
         {
@@ -181,7 +181,7 @@
       ]
     },
     {
-      "Name": "branch.lookupValue",
+      "Name": "branch.name",
       "Description": "[Mandatory]",
       "Type": "Text",
       "MappingActions": [
@@ -250,7 +250,7 @@
       ]
     },
     {
-      "Name": "firstInitials",
+      "Name": "initials",
       "Description": "",
       "Type": "Text",
       "MappingActions": [
@@ -260,7 +260,7 @@
             "Update"
           ],
           "MappingMode": "Complex",
-          "Value": "\"function getFirstInitials() {\\r\\n    let initials = '';\\r\\n\\r\\n    if (typeof Person.Name.Initials !== 'undefined' && Person.Name.Initials) {\\r\\n        initials = Person.Name.Initials;\\r\\n        // Max length 10 char\\r\\n        if ((initials.length) > 10) {\\r\\n            initials = initials.substring(0, 10)\\r\\n        }\\r\\n    }\\r\\n\\r\\n    return initials;\\r\\n}\\r\\n\\r\\ngetFirstInitials();\"",
+          "Value": "\"function getInitials() {\\r\\n    let initials = '';\\r\\n\\r\\n    if (typeof Person.Name.Initials !== 'undefined' && Person.Name.Initials) {\\r\\n        initials = Person.Name.Initials;\\r\\n        // Max length 10 char\\r\\n        if ((initials.length) > 10) {\\r\\n            initials = initials.substring(0, 10)\\r\\n        }\\r\\n    }\\r\\n\\r\\n    return initials;\\r\\n}\\r\\n\\r\\ngetInitials();\"",
           "UsedInNotifications": false,
           "StoreInAccountData": false
         }

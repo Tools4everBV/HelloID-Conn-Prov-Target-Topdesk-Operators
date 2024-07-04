@@ -1,7 +1,6 @@
-###################################################################
+#####################################################
 # HelloID-Conn-Prov-Target-Topdesk-Operators-RevokePermission-Filter
-#
-# Version: 3.0.0 | new-powershell-connector
+# PowerShell V2
 #####################################################
 
 $pRef = $actionContext.References.Permission

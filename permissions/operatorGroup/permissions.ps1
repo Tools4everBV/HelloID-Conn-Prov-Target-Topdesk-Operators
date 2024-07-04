@@ -1,7 +1,6 @@
-###################################################################
+#####################################################
 # HelloID-Conn-Prov-Target-Topdesk-Operators-Permissions-Groups
-#
-# Version: 3.0.0 | new-powershell-connector
+# PowerShell V2
 #####################################################
 
 # Initialize default values

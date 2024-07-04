@@ -1,7 +1,6 @@
 ###################################################################
 # HelloID-Conn-Prov-Target-Topdesk-Operators-Permissions-Tasks
-#
-# Version: 3.0.0 | new-powershell-connector
+# PowerShell V2
 #####################################################
 
 $prefixeName = "Task "
