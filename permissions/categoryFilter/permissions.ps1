@@ -1,35 +1,30 @@
-###################################################################
-# HelloID-Conn-Prov-Target-Topdesk-Operators-Permissions-Retrieve
-#
-# Version: 2.0
-###################################################################
+#####################################################
+# HelloID-Conn-Prov-Target-Topdesk-Operators-Permissions-CategoryFilters
+# PowerShell V2
+#####################################################
 
 # Initialize default values
-$config = $configuration | ConvertFrom-Json
 $take = 100
 $skip = 0
-$baseUrl = $config.baseUrl
+$baseUrl = $actionContext.Configuration.baseUrl
 
 # Set debug logging
-switch ($($config.IsDebug)) {
-    $true  { $VerbosePreference = 'Continue' }
+switch ($($actionContext.Configuration.isDebug)) {
+    $true { $VerbosePreference = 'Continue' }
     $false { $VerbosePreference = 'SilentlyContinue' }
 }
 
-# Set TLS to accept TLS, TLS 1.1 and TLS 1.2
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
+# Enable TLS1.2
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
-# region helperfunctions
+#region functions
 
 function Set-AuthorizationHeaders {
-    [CmdletBinding()]
     param (
-        [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
         [string]
         $Username,
 
-        [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
         [string]
         $ApiKey
@@ -41,20 +36,17 @@ function Set-AuthorizationHeaders {
     # Set authentication headers
     $authHeaders = [System.Collections.Generic.Dictionary[string, string]]::new()
     $authHeaders.Add("Authorization", "BASIC $base64")
-    $authHeaders.Add("Accept", 'application/json')
+    $authHeaders.Add('Accept', 'application/json; charset=utf-8')
 
     Write-Output $authHeaders
 }
 
 function Invoke-TopdeskRestMethod {
-    [CmdletBinding()]
     param (
-        [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
         [string]
         $Method,
 
-        [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
         [string]
         $Uri,
@@ -65,7 +57,6 @@ function Invoke-TopdeskRestMethod {
         [string]
         $ContentType = 'application/json; charset=utf-8',
 
-        [Parameter(Mandatory)]
         [System.Collections.IDictionary]
         $Headers
     )
@@ -82,34 +73,38 @@ function Invoke-TopdeskRestMethod {
                 $splatParams['Body'] = [Text.Encoding]::UTF8.GetBytes($Body)
             }
             Invoke-RestMethod @splatParams -Verbose:$false
-        } catch {
-            $PSCmdlet.ThrowTerminatingError($_)
+        }
+        catch {
+            Throw $_
         }
     }
 }
-
-# end region helperfunctions
+#endregion functions
 
 try {
 
-     # Setup authentication headers
-    $authHeaders = Set-AuthorizationHeaders -UserName $Config.username -ApiKey $Config.apiKey
+    # Setup authentication headers
+    $splatParamsAuthorizationHeaders = @{
+        UserName = $actionContext.Configuration.username
+        ApiKey   = $actionContext.Configuration.apikey
+    }
+    $authHeaders = Set-AuthorizationHeaders @splatParamsAuthorizationHeaders
 
-    Write-Verbose "Searching for operator groups"
-    $operatorGroups = [System.Collections.ArrayList]@();
-    $paged = $true;
+    Write-Verbose "Searching for category filters"
+    $categoryFilters = [System.Collections.ArrayList]@()
+    $paged = $true
     while ($paged) {
 
-        # Get operatorgroups
+        # Get CategoryFilters
         $splatParams = @{
-            Uri     = "$baseUrl/tas/api/operatorgroups/?start=$skip&page_size=$take"
+            Uri     = "$baseUrl/tas/api/operators/filters/category/?start=$skip&page_size=$take"
             Method  = 'GET'
             Headers = $authHeaders
         }
-        $operatorGroupsResponse = Invoke-TopdeskRestMethod @splatParams
+        $categoryFiltersResponse = Invoke-TopdeskRestMethod @splatParams
 
         # Set $paged to false (to end loop) when response is less than take, indicating there are no more records to query
-        if ($operatorGroupsResponse.id.count -lt $take) {
+        if ($categoryFiltersResponse.id.count -lt $take) {
             $paged = $false;
         }
         # Else: Up skip with take to skip the already queried records
@@ -117,27 +112,27 @@ try {
             $skip = $skip + $take;
         }
 
-        if ($operatorGroupsResponse -is [array]) {
-            [void]$operatorGroups.AddRange($operatorGroupsResponse);
+        if ($categoryFiltersResponse -is [array]) {
+            [void]$categoryFilters.AddRange($categoryFiltersResponse)
         }
         else {
-            [void]$operatorGroups.Add($operatorGroupsResponse);
+            [void]$categoryFilters.Add($categoryFiltersResponse)
         }
     }
 }
 catch {
-    throw $_;
+    throw $_
 }
 
-foreach ($group in $operatorGroups) {
-    $returnObject = @{
-        DisplayName    = "OperatorGroup - $($group.groupName)";
-        Identification = @{
-            Id   = $group.id
-            Name = $group.groupName
-            Type = "OperatorGroup"
+foreach ($filter in $categoryFilters) {
+    $outputContext.Permissions.Add(
+        @{
+            displayName    = "CategoryFilter - $($filter.name)"
+            identification = @{
+                Id   = $filter.id
+                Name = $filter.name
+                Type = "CategoryFilter"
+            }
         }
-    };
-
-    Write-Output $returnObject | ConvertTo-Json -Depth 10
+    )
 }
