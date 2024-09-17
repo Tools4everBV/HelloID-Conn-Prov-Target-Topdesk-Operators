@@ -656,8 +656,8 @@ try {
         
         'NoChanges' {        
             $outputContext.AccountReference = $TopdeskOperator.id
-            $outputContext.Data = $actionContext.Data
-            $outputContext.PreviousData = $actionContext.Data
+            $outputContext.Data = $TopdeskOperator
+            $outputContext.PreviousData = $TopdeskOperator
 
             Write-Information "Account with id [$($TopdeskOperator.id)] successfully checked. No changes required"
 
