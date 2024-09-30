@@ -385,7 +385,7 @@ try {
         $TopdeskOperator = Get-TopdeskOperatorByCorrelationAttribute @splatParamsOperator
     }
     else {
-        Throw "Configuration of correlation is madatory."
+        Throw "Configuration of correlation is mandatory."
     }
     #endregion correlation
 
