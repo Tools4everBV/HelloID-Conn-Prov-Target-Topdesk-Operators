@@ -296,7 +296,6 @@ try {
             }
             if ($null -ne $accountSplatCompareProperties.ReferenceObject -and $null -ne $accountSplatCompareProperties.DifferenceObject) {
                 $accountPropertiesChanged = Compare-Object @accountSplatCompareProperties -PassThru
-                $accountOldProperties = $accountPropertiesChanged | Where-Object { $_.SideIndicator -eq "<=" }
                 $accountNewProperties = $accountPropertiesChanged | Where-Object { $_.SideIndicator -eq "=>" }
             }
         }
@@ -321,19 +320,6 @@ try {
     #region Write
     switch ($action) {
         'UpdateAndDisable' {
-            $accountChangedPropertiesObject = [PSCustomObject]@{
-                OldValues = @{}
-                NewValues = @{}
-            }
-        
-            foreach ($accountOldProperty in ($accountOldProperties | Where-Object { $_.Name -in $accountNewProperties.Name })) {
-                $accountChangedPropertiesObject.OldValues.$($accountOldProperty.Name) = $accountOldProperty.Value
-            }
-        
-            foreach ($accountNewProperty in $accountNewProperties) {
-                $accountChangedPropertiesObject.NewValues.$($accountNewProperty.Name) = $accountNewProperty.Value
-            }
-
             # Unarchive operator if required
             if ($TopdeskOperator.status -eq 'operatorArchived') {
 
@@ -366,7 +352,7 @@ try {
                 $TopdeskOperatorUpdated = Set-TopdeskOperator @splatParamsOperatorUpdate
             }
             else {
-                Write-Warning "DryRun would update account with id [$($TopdeskOperator.id)] and dynamicName [($($TopdeskOperator.dynamicName))]. Old values: $($accountChangedPropertiesObject.oldValues | ConvertTo-Json). New values: $($accountChangedPropertiesObject.newValues | ConvertTo-Json)"
+                Write-Warning "DryRun would update account with id [$($TopdeskOperator.id)] and dynamicName [($($TopdeskOperator.dynamicName))]"
             }
     
             # Always archive operator in the delete process
@@ -389,10 +375,10 @@ try {
             $outputContext.Data = $TopdeskOperatorUpdated
 
             if (-Not($actionContext.DryRun -eq $true)) {
-                Write-Information "Account with id [$($TopdeskOperator.id)] and dynamicName [($($TopdeskOperator.dynamicName))] successfully updated and archived. Old values: $($accountChangedPropertiesObject.oldValues | ConvertTo-Json). New values: $($accountChangedPropertiesObject.newValues | ConvertTo-Json)"
+                Write-Information "Account with id [$($TopdeskOperator.id)] and dynamicName [($($TopdeskOperator.dynamicName))] successfully updated and archived"
 
                 $outputContext.AuditLogs.Add([PSCustomObject]@{
-                        Message = "Account with id [$($TopdeskOperator.id)] and dynamicName [($($TopdeskOperator.dynamicName))] successfully updated and archived. Old values: $($accountChangedPropertiesObject.oldValues | ConvertTo-Json). New values: $($accountChangedPropertiesObject.newValues | ConvertTo-Json)"
+                        Message = "Account with id [$($TopdeskOperator.id)] and dynamicName [($($TopdeskOperator.dynamicName))] successfully updated and archived"
                         IsError = $false
                     })
             }
