@@ -3,10 +3,6 @@
 # PowerShell V2
 #####################################################
 
-$pRef = $actionContext.References.Permission
-$aRef = $actionContext.References.Account
-$baseUrl = $actionContext.Configuration.baseUrl
-
 # Set to true at start, because only when an error occurs it is set to false
 $outputContext.Success = $true
 
@@ -243,12 +239,12 @@ try {
             Set-TopdeskOperatorArchiveStatus @splatParamsOperatorUnarchive
         }
 
-        Write-Verbose "Revoking category filter permission $($pRef.Name) ($($pRef.id)) from ($($aRef))"
+        Write-Verbose "Revoking category filter $($actionContext.PermissionDisplayName) ($($actionContext.References.Permission.Reference)) from $($actionContext.References.Account)"
         $splatParams = @{
-            Uri     = "$BaseUrl/tas/api/operators/id/$($aRef)/filters/category"
+            Uri     = "$($actionContext.Configuration.baseUrl)/tas/api/operators/id/$($actionContext.References.Account)/filters/category"
             Method  = 'DELETE'
             Headers = $authHeaders
-            Body    = ConvertTo-Json -InputObject @(@{ id = $($pRef.id) }) -Depth 10
+            Body    = ConvertTo-Json -InputObject @(@{ id = $($actionContext.References.Permission.Reference) }) -Depth 10
         }
         $null = Invoke-TopdeskRestMethod @splatParams
         
@@ -266,22 +262,17 @@ try {
             Set-TopdeskOperatorArchiveStatus @splatParamsOperatorArchive
         }
 
-        Write-Verbose "Successfully revoked category filter permission $($pRef.Name) ($($pRef.id)) from ($($aRef))"
+        Write-Verbose "Successfully revoked category filter $($actionContext.PermissionDisplayName) ($($actionContext.References.Permission.Reference)) from $($actionContext.References.Account)"
 
         $outputContext.AuditLogs.Add([PSCustomObject]@{
                 Action  = "RevokePermission"
-                Message = "Successfully revoked category filter permission $($pRef.Name) ($($pRef.id)) from ($($actionContext.References.Account))"
+                Message = "Successfully revoked category filter $($actionContext.PermissionDisplayName) ($($actionContext.References.Permission.Reference)) from $($actionContext.References.Account)"
                 IsError = $false
             })
     }
     else {
         # Add an auditMessage showing what will happen during enforcement
-        Write-Warning "DryRun: Would revoke category filter permission $($pRef.Name) ($($pRef.id)) from [$($personContext.Person.DisplayName)]"
-        $outputContext.AuditLogs.Add([PSCustomObject]@{
-                Action  = "RevokePermission"
-                Message = "DryRun: Would revoke category filter permission $($pRef.Name) ($($pRef.id)) from [$($personContext.Person.DisplayName)]"
-                IsError = $false
-            })
+        Write-Warning "DryRun: Would revoke category filter $($actionContext.PermissionDisplayName) ($($actionContext.References.Permission.Reference)) from $($personContext.Person.DisplayName)"
     } 
 
 }

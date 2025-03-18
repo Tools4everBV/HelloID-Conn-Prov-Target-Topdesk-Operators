@@ -6,7 +6,6 @@
 # Initialize default values
 $take = 100
 $skip = 0
-$baseUrl = $actionContext.Configuration.baseUrl
 
 # Set debug logging
 switch ($($actionContext.Configuration.isDebug)) {
@@ -97,7 +96,7 @@ try {
 
         # Get operatorgroups
         $splatParams = @{
-            Uri     = "$baseUrl/tas/api/operatorgroups/?start=$skip&page_size=$take"
+            Uri     = "$($actionContext.Configuration.baseUrl)/tas/api/operatorgroups/?start=$skip&page_size=$take"
             Method  = 'GET'
             Headers = $authHeaders
         }
@@ -119,20 +118,34 @@ try {
             [void]$operatorGroups.Add($operatorGroupsResponse)
         }
     }
+
+    foreach ($group in $operatorGroups) {
+        $outputContext.Permissions.Add(
+            @{
+                DisplayName    = "Operator group - $($group.groupName)"
+                Identification = @{
+                    Reference = $group.id
+                }
+            }
+        )
+    }
 }
 catch {
-    throw $_
-}
+    $ex = $PSItem
+    if ($($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or
+        $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
 
-foreach ($group in $operatorGroups) {
-    $outputContext.Permissions.Add(
-        @{
-            displayName    = "OperatorGroup - $($group.groupName)";
-            identification = @{
-                Id   = $group.id
-                Name = $group.groupName
-                Type = "OperatorGroup"
-            }
+        if (-Not [string]::IsNullOrEmpty($ex.ErrorDetails.Message)) {
+            Write-Information "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.ErrorDetails.Message)"
+            Write-Error "Could not retrieve operator groups. Error: $($ex.ErrorDetails.Message)"
         }
-    )
+        else {
+            Write-Information "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+            Write-Error "Could not retrieve operator groups. Error: $($ex.Exception.Message)"
+        }
+    }
+    else {
+        Write-Information "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+        Write-Error "Could not retrieve operator groups. Error: $($ex.Exception.Message)"
+    }
 }

@@ -6,7 +6,6 @@
 # Initialize default values
 $take = 100
 $skip = 0
-$baseUrl = $actionContext.Configuration.baseUrl
 
 # Set debug logging
 switch ($($actionContext.Configuration.isDebug)) {
@@ -97,7 +96,7 @@ try {
 
         # Get OperatorFilters
         $splatParams = @{
-            Uri     = "$baseUrl/tas/api/operators/filters/operator/?start=$skip&page_size=$take"
+            Uri     = "$($actionContext.Configuration.baseUrl)/tas/api/operators/filters/operator/?start=$skip&page_size=$take"
             Method  = 'GET'
             Headers = $authHeaders
         }
@@ -119,20 +118,34 @@ try {
             [void]$operatorFilters.Add($operatorFiltersResponse)
         }
     }
+
+    foreach ($filter in $operatorFilters) {
+        $outputContext.Permissions.Add(
+            @{
+                DisplayName    = "Operator filter - $($filter.name)"
+                Identification = @{
+                    Reference = $filter.id
+                }
+            }
+        )
+    }
 }
 catch {
-    throw $_
-}
+    $ex = $PSItem
+    if ($($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or
+        $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
 
-foreach ($filter in $operatorFilters) {
-    $outputContext.Permissions.Add(
-        @{
-            displayName    = "Operator Filter - $($filter.name)"
-            identification = @{
-                Id   = $filter.id
-                Name = $filter.name
-                Type = "OperatorFilter"
-            }
+        if (-Not [string]::IsNullOrEmpty($ex.ErrorDetails.Message)) {
+            Write-Information "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.ErrorDetails.Message)"
+            Write-Error "Could not retrieve operator filters. Error: $($ex.ErrorDetails.Message)"
         }
-    )
+        else {
+            Write-Information "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+            Write-Error "Could not retrieve operator filters. Error: $($ex.Exception.Message)"
+        }
+    }
+    else {
+        Write-Information "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+        Write-Error "Could not retrieve operator filters. Error: $($ex.Exception.Message)"
+    }
 }

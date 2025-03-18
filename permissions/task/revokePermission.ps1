@@ -4,8 +4,6 @@
 #####################################################
 
 $pRef = $actionContext.References.Permission
-$aRef = $actionContext.References.Account
-$baseUrl = $actionContext.Configuration.baseUrl
 
 # Set to true at start, because only when an error occurs it is set to false
 $outputContext.Success = $true
@@ -276,7 +274,7 @@ try {
             Set-TopdeskOperatorArchiveStatus @splatParamsOperatorUnarchive
         }
         
-        Write-Verbose "Revoking task permission $($pRef.Reference) from ($($aRef))"
+        Write-Verbose "Revoking task permission $($pRef.Reference) from ($($actionContext.References.Account))"
         # Update TOPdesk operator
         $splatParamsOperatorUpdate = @{
             TopdeskOperator = $TopdeskOperator
@@ -300,7 +298,7 @@ try {
             Set-TopdeskOperatorArchiveStatus @splatParamsOperatorArchive
         }
 
-        Write-Verbose "Successfully revoked task permission $($pRef.Reference) from ($($aRef))"
+        Write-Verbose "Successfully revoked task permission $($pRef.Reference) from ($($actionContext.References.Account))"
 
         $outputContext.AuditLogs.Add([PSCustomObject]@{
                 Action  = "RevokePermission"
@@ -311,11 +309,6 @@ try {
     else {
         # Add an auditMessage showing what will happen during enforcement
         Write-Warning "DryRun: Would revoke task permission $($pRef.Reference) from [$($personContext.Person.DisplayName)]"
-        $outputContext.AuditLogs.Add([PSCustomObject]@{
-                Action  = "RevokePermission"
-                Message = "DryRun: Would revoke task permission $($pRef.Reference) from [$($personContext.Person.DisplayName)]"
-                IsError = $false
-            })
     } 
 
 }

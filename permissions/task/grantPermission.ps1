@@ -4,7 +4,6 @@
 #####################################################
 
 $pRef = $actionContext.References.Permission
-$aRef = $actionContext.References.Account
 
 # Set to true at start, because only when an error occurs it is set to false
 $outputContext.Success = $true
@@ -275,7 +274,7 @@ try {
             Set-TopdeskOperatorArchiveStatus @splatParamsOperatorUnarchive
         }
 
-        Write-Verbose "Granting task permission $($pRef.Reference) to ($($aRef))"        
+        Write-Verbose "Granting task permission $($pRef.Reference) to ($($actionContext.References.Account))"      
         # Update TOPdesk operator
         $splatParamsOperatorUpdate = @{
             TopdeskOperator = $TopdeskOperator
@@ -299,7 +298,7 @@ try {
             Set-TopdeskOperatorArchiveStatus @splatParamsOperatorArchive
         }
 
-        Write-Verbose "Successfully granted task permission $($pRef.Reference) to ($($aRef))"
+        Write-Verbose "Successfully granted task permission $($pRef.Reference) to ($($actionContext.References.Account))"
 
         $outputContext.AuditLogs.Add([PSCustomObject]@{
                 Action  = "GrantPermission"
@@ -310,11 +309,6 @@ try {
     else {
         # Add an auditMessage showing what will happen during enforcement
         Write-Warning "DryRun: Would grant task permission $($pRef.Reference) to [$($personContext.Person.DisplayName)]"
-        $outputContext.AuditLogs.Add([PSCustomObject]@{
-                Action  = "GrantPermission"
-                Message = "DryRun: Would grant task permission $($pRef.Reference) to [$($personContext.Person.DisplayName)]"
-                IsError = $false
-            })
     } 
 
 }
