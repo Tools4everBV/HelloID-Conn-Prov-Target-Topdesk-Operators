@@ -8,12 +8,6 @@ $pRef = $actionContext.References.Permission
 # Set to true at start, because only when an error occurs it is set to false
 $outputContext.Success = $true
 
-# Set debug logging
-switch ($($actionContext.Configuration.isDebug)) {
-    $true { $VerbosePreference = 'Continue' }
-    $false { $VerbosePreference = 'SilentlyContinue' }
-}
-
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
@@ -194,7 +188,7 @@ function Set-TopdeskOperatorArchiveStatus {
     # Check the current status of the Person and compare it with the status in archiveStatus
     if ($archiveStatus -ne $TopdeskOperator.status) {
         # Archive / unarchive person
-        Write-Verbose "[$archiveUri] person with id [$($TopdeskOperator.id)]"
+        Write-Information "[$archiveUri] person with id [$($TopdeskOperator.id)]"
         $splatParams = @{
             Uri     = "$BaseUrl/tas/api/operators/id/$($TopdeskOperator.id)/$archiveUri"
             Method  = 'PATCH'
@@ -224,7 +218,7 @@ function Set-TopdeskOperator {
         $TopdeskOperator
     )
 
-    Write-Verbose "Updating operator"
+    Write-Information "Updating operator"
     $splatParams = @{
         Uri     = "$BaseUrl/tas/api/operators/id/$($TopdeskOperator.id)"
         Method  = 'PATCH'
@@ -274,7 +268,7 @@ try {
             Set-TopdeskOperatorArchiveStatus @splatParamsOperatorUnarchive
         }
         
-        Write-Verbose "Revoking task permission $($pRef.Reference) from ($($actionContext.References.Account))"
+        Write-Information "Revoking task permission $($pRef.Reference) from ($($actionContext.References.Account))"
         # Update TOPdesk operator
         $splatParamsOperatorUpdate = @{
             TopdeskOperator = $TopdeskOperator
@@ -298,7 +292,7 @@ try {
             Set-TopdeskOperatorArchiveStatus @splatParamsOperatorArchive
         }
 
-        Write-Verbose "Successfully revoked task permission $($pRef.Reference) from ($($actionContext.References.Account))"
+        Write-Information "Successfully revoked task permission $($pRef.Reference) from ($($actionContext.References.Account))"
 
         $outputContext.AuditLogs.Add([PSCustomObject]@{
                 Action  = "RevokePermission"

@@ -3,12 +3,6 @@
 # PowerShell V2
 #####################################################
 
-# Set debug logging
-switch ($($actionContext.Configuration.isDebug)) {
-    $true { $VerbosePreference = 'Continue' }
-    $false { $VerbosePreference = 'SilentlyContinue' }
-}
-
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
@@ -206,7 +200,7 @@ function Set-TopdeskOperatorArchiveStatus {
     # Check the current status of the Person and compare it with the status in archiveStatus
     if ($archiveStatus -ne $TopdeskOperator.status) {
         # Archive / unarchive person
-        Write-Verbose "[$archiveUri] person with id [$($TopdeskOperator.id)]"
+        Write-Information "[$archiveUri] person with id [$($TopdeskOperator.id)]"
         $splatParams = @{
             Uri     = "$BaseUrl/tas/api/operators/id/$($TopdeskOperator.id)/$archiveUri"
             Method  = 'PATCH'
@@ -236,7 +230,7 @@ function Set-TopdeskOperator {
         $TopdeskOperator
     )
 
-    Write-Verbose "Updating operator"
+    Write-Information "Updating operator"
 
     # Difference between GET and POST/PATCH operator for the field [initials] <--> [firstInitials] 
     # https://developers.topdesk.com/explorer/?page=supporting-files#/Operators/createOperator

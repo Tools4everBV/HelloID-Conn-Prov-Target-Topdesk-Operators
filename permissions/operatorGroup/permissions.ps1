@@ -7,12 +7,6 @@
 $take = 100
 $skip = 0
 
-# Set debug logging
-switch ($($actionContext.Configuration.isDebug)) {
-    $true { $VerbosePreference = 'Continue' }
-    $false { $VerbosePreference = 'SilentlyContinue' }
-}
-
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
@@ -89,7 +83,7 @@ try {
     }
     $authHeaders = Set-AuthorizationHeaders @splatParamsAuthorizationHeaders
 
-    Write-Verbose "Searching for operator groups"
+    Write-Information "Searching for operator groups"
     $operatorGroups = [System.Collections.ArrayList]@()
     $paged = $true
     while ($paged) {

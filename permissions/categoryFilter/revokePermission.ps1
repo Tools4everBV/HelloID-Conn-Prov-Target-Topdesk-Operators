@@ -6,12 +6,6 @@
 # Set to true at start, because only when an error occurs it is set to false
 $outputContext.Success = $true
 
-# Set debug logging
-switch ($($actionContext.Configuration.isDebug)) {
-    $true { $VerbosePreference = 'Continue' }
-    $false { $VerbosePreference = 'SilentlyContinue' }
-}
-
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
@@ -187,7 +181,7 @@ function Set-TopdeskOperatorArchiveStatus {
     # Check the current status of the Person and compare it with the status in archiveStatus
     if ($archiveStatus -ne $TopdeskOperator.status) {
         # Archive / unarchive person
-        Write-Verbose "[$archiveUri] person with id [$($TopdeskOperator.id)]"
+        Write-Information "[$archiveUri] person with id [$($TopdeskOperator.id)]"
         $splatParams = @{
             Uri     = "$BaseUrl/tas/api/operators/id/$($TopdeskOperator.id)/$archiveUri"
             Method  = 'PATCH'
@@ -239,7 +233,7 @@ try {
             Set-TopdeskOperatorArchiveStatus @splatParamsOperatorUnarchive
         }
 
-        Write-Verbose "Revoking category filter $($actionContext.PermissionDisplayName) ($($actionContext.References.Permission.Reference)) from $($actionContext.References.Account)"
+        Write-Information "Revoking category filter $($actionContext.PermissionDisplayName) ($($actionContext.References.Permission.Reference)) from $($actionContext.References.Account)"
         $splatParams = @{
             Uri     = "$($actionContext.Configuration.baseUrl)/tas/api/operators/id/$($actionContext.References.Account)/filters/category"
             Method  = 'DELETE'
@@ -262,7 +256,7 @@ try {
             Set-TopdeskOperatorArchiveStatus @splatParamsOperatorArchive
         }
 
-        Write-Verbose "Successfully revoked category filter $($actionContext.PermissionDisplayName) ($($actionContext.References.Permission.Reference)) from $($actionContext.References.Account)"
+        Write-Information "Successfully revoked category filter $($actionContext.PermissionDisplayName) ($($actionContext.References.Permission.Reference)) from $($actionContext.References.Account)"
 
         $outputContext.AuditLogs.Add([PSCustomObject]@{
                 Action  = "RevokePermission"
