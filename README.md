@@ -34,7 +34,7 @@ Supported features:
 | ----------------------------------- | --------- | --------------------------------------- | ------- |
 | **Account Lifecycle**               | ✅         | Create, Update, Enable, Disable, Delete |         |
 | **Permissions**                     | ✅         | Retrieve, Grant, Revoke                 |         |
-| **Resources**                       | ✅         | -                                       |         |
+| **Resources**                       | ❌         | -                                       |         |
 | **Entitlement Import: Accounts**    | ✅         | -                                       |         |
 | **Entitlement Import: Permissions** | ✅         | -                                       |         |
 
