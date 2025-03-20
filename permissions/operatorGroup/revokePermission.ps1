@@ -233,12 +233,12 @@ try {
             Set-TopdeskOperatorArchiveStatus @splatParamsOperatorUnarchive
         }
 
-        Write-Information "Revoking operator group $($actionContext.PermissionDisplayName) ($($actionContext.References.Permission.Reference)) from $($actionContext.References.Account)"
+        Write-Information "Revoking operator group $($actionContext.PermissionDisplayName) ($($actionContext.References.Permission.Id)) from $($actionContext.References.Account)"
         $splatParams = @{
             Uri     = "$($actionContext.Configuration.baseUrl)/tas/api/operators/id/$($actionContext.References.Account)/operatorgroups"
             Method  = 'Delete'
             Headers = $authHeaders
-            Body    = ConvertTo-Json -InputObject @(@{ id = $($actionContext.References.Permission.Reference) }) -Depth 10
+            Body    = ConvertTo-Json -InputObject @(@{ id = $($actionContext.References.Permission.Id) }) -Depth 10
         }
         $null = Invoke-TopdeskRestMethod @splatParams
         
@@ -256,17 +256,17 @@ try {
             Set-TopdeskOperatorArchiveStatus @splatParamsOperatorArchive
         }
 
-        Write-Information "Successfully revoked operator group $($actionContext.PermissionDisplayName) ($($actionContext.References.Permission.Reference)) from $($actionContext.References.Account)"
+        Write-Information "Successfully revoked operator group $($actionContext.PermissionDisplayName) ($($actionContext.References.Permission.Id)) from $($actionContext.References.Account)"
 
         $outputContext.AuditLogs.Add([PSCustomObject]@{
                 Action  = "RevokePermission"
-                Message = "Successfully revoked operator group $($actionContext.PermissionDisplayName) ($($actionContext.References.Permission.Reference)) from $($actionContext.References.Account)"
+                Message = "Successfully revoked operator group $($actionContext.PermissionDisplayName) ($($actionContext.References.Permission.Id)) from $($actionContext.References.Account)"
                 IsError = $false
             })
     }
     else {
         # Add an auditMessage showing what will happen during enforcement
-        Write-Warning "DryRun: Would revoke operator group $($actionContext.References.Permission.Reference) from $($personContext.Person.DisplayName)"
+        Write-Warning "DryRun: Would revoke operator group $($actionContext.References.Permission.Id) from $($personContext.Person.DisplayName)"
     } 
 }
 catch {

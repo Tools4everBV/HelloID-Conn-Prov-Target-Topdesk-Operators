@@ -83,7 +83,7 @@ try {
                             $account.id
                         )
                         PermissionReference = @{
-                            Reference = $permission.id
+                            Id = $permission.id
                         }
                         Description         = "Category filter $($permission.name)"
                         DisplayName         = $permission.name

@@ -84,7 +84,7 @@ try {
                             $account.id
                         )
                         PermissionReference = @{
-                            Reference = $permission.id
+                            Id = $permission.id
                         }
                         Description         = "Operator filter $($permission.name)"
                         DisplayName         = $permission.name

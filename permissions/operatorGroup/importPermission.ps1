@@ -59,7 +59,7 @@ try {
                 @{
                     AccountReferences   = $groupMembers
                     PermissionReference = @{
-                        Reference = $permission.id
+                        Id = $permission.id
                     }
                     Description         = "Operator group $($permission.groupName)"
                     DisplayName         = $permission.groupName

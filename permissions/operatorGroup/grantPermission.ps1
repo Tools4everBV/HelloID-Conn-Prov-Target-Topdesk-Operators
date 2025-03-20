@@ -233,12 +233,12 @@ try {
             Set-TopdeskOperatorArchiveStatus @splatParamsOperatorUnarchive
         }
 
-        Write-Information "Granting operator group $($actionContext.PermissionDisplayName) ($($actionContext.References.Permission.Reference)) to $($actionContext.References.Account)"
+        Write-Information "Granting operator group $($actionContext.PermissionDisplayName) ($($actionContext.References.Permission.Id)) to $($actionContext.References.Account)"
         $splatParams = @{
             Uri     = "$($actionContext.Configuration.baseUrl)/tas/api/operators/id/$($actionContext.References.Account)/operatorgroups"
             Method  = 'POST'
             Headers = $authHeaders
-            Body    = ConvertTo-Json -InputObject @(@{ id = $($actionContext.References.Permission.Reference) }) -Depth 10
+            Body    = ConvertTo-Json -InputObject @(@{ id = $($actionContext.References.Permission.Id) }) -Depth 10
         }
         $null = Invoke-TopdeskRestMethod @splatParams
         
@@ -256,17 +256,17 @@ try {
             Set-TopdeskOperatorArchiveStatus @splatParamsOperatorArchive
         }
 
-        Write-Information "Successfully granted operator group $($actionContext.PermissionDisplayName) ($($actionContext.References.Permission.Reference)) to $($actionContext.References.Account)"
+        Write-Information "Successfully granted operator group $($actionContext.PermissionDisplayName) ($($actionContext.References.Permission.Id)) to $($actionContext.References.Account)"
 
         $outputContext.AuditLogs.Add([PSCustomObject]@{
                 Action  = "GrantPermission"
-                Message = "Successfully granted operator group $($actionContext.PermissionDisplayName) ($($actionContext.References.Permission.Reference)) to $($actionContext.References.Account)"
+                Message = "Successfully granted operator group $($actionContext.PermissionDisplayName) ($($actionContext.References.Permission.Id)) to $($actionContext.References.Account)"
                 IsError = $false
             })
     }
     else {
         # Add an auditMessage showing what will happen during enforcement
-        Write-Warning "DryRun: Would grant operator group permission $($actionContext.References.Permission.Reference) to [$($personContext.Person.DisplayName)]"
+        Write-Warning "DryRun: Would grant operator group permission $($actionContext.References.Permission.Id) to [$($personContext.Person.DisplayName)]"
     }
 }
 catch {
