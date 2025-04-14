@@ -34,9 +34,9 @@ Supported features:
 | ----------------------------------- | --------- | --------------------------------------- | ------- |
 | **Account Lifecycle**               | ✅         | Create, Update, Enable, Disable, Delete |         |
 | **Permissions**                     | ✅         | Retrieve, Grant, Revoke                 |         |
-| **Resources**                       | ❌         | -                                       |         |
+| **Resources**                       | ✅         | -                                       |         |
 | **Entitlement Import: Accounts**    | ✅         | -                                       |         |
-| **Entitlement Import: Permissions** | ✅         | -                                       |         |
+| **Entitlement Import: Permissions** | ❌         | -                                       |         |
 
 _HelloID-Conn-Prov-Target-Topdesk-Operator_ is a _target_ connector. Topdesk provides a set of REST APIs that allow you to programmatically interact with its data. The [Topdesk API documentation](https://developers.topdesk.com/explorer/?page=supporting-files#/) provides details of API commands that are used.
 
