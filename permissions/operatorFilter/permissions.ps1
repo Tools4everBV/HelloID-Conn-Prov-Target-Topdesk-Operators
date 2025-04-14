@@ -117,7 +117,9 @@ try {
             @{
                 DisplayName    = "Operator filter - $($filter.name)"
                 Identification = @{
-                    Id = $filter.id
+                    Id   = $filter.id
+                    Name = $filter.name
+                    Type = "OperatorFilter"
                 }
             }
         )

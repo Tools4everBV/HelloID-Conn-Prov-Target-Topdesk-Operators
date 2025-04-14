@@ -118,7 +118,9 @@ try {
             @{
                 DisplayName    = "Operator group - $($group.groupName)"
                 Identification = @{
-                    Id = $group.id
+                    Id   = $group.id
+                    Name = $group.groupName
+                    Type = "OperatorGroup"
                 }
             }
         )
