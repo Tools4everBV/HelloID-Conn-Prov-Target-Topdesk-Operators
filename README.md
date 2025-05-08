@@ -1,5 +1,5 @@
 
-# HelloID-Conn-Prov-Target-Topdesk-Operators
+# HelloID-Conn-Prov-Target-TOPdesk-Operators
 
 > [!IMPORTANT]
 > This repository contains the connector and configuration code only. The implementer is responsible to acquire the connection details such as username, password, certificate, etc. You might even need to sign a contract or agreement with the supplier before implementing this connector. Please contact the client's application manager to coordinate the connector requirements.
@@ -10,7 +10,7 @@
 
 ## Table of contents
 
-- [HelloID-Conn-Prov-Target-Topdesk-Operators](#helloid-conn-prov-target-topdesk-operators)
+- [HelloID-Conn-Prov-Target-TOPdesk-Operators](#helloid-conn-prov-target-topdesk-operators)
   - [Table of contents](#table-of-contents)
   - [Introduction](#introduction)
   - [Getting started](#getting-started)
@@ -21,7 +21,7 @@
     - [Prerequisites](#prerequisites)
     - [Remarks](#remarks)
   - [Setup the connector](#setup-the-connector)
-    - [Remove attributes when updating a Topdesk operator instead of corelating](#remove-attributes-when-updating-a-topdesk-operator-instead-of-corelating)
+    - [Remove attributes when updating a TOPdesk operator instead of corelating](#remove-attributes-when-updating-a-topdesk-operator-instead-of-corelating)
     - [Disable department or budgetholder](#disable-department-or-budgetholder)
     - [Managing tasks permissions](#managing-tasks-permissions)
   - [Getting help](#getting-help)
@@ -30,15 +30,15 @@
 ## Introduction
 
 Supported features:
-| Feature                             | Supported | Actions                                 | Remarks |
-| ----------------------------------- | --------- | --------------------------------------- | ------- |
-| **Account Lifecycle**               | ✅         | Create, Update, Enable, Disable, Delete |         |
-| **Permissions**                     | ✅         | Retrieve, Grant, Revoke                 |         |
-| **Resources**                       | ❌         | -                                       |         |
-| **Entitlement Import: Accounts**    | ✅         | -                                       |         |
-| **Entitlement Import: Permissions** | ✅         | -                                       |         |
+| Feature                             | Supported | Actions                                                                     | Remarks |
+| ----------------------------------- | --------- | --------------------------------------------------------------------------- | ------- |
+| **Account Lifecycle**               | ✅         | Create, Update, Enable, Disable, Delete (disable with option to clear data) |         |
+| **Permissions**                     | ✅         | Operator groups, operator filters, category filters and tasks               |         |
+| **Resources**                       | ❌         | -                                                                           |         |
+| **Entitlement Import: Accounts**    | ✅         | -                                                                           |         |
+| **Entitlement Import: Permissions** | ✅         | -                                                                           |         |
 
-_HelloID-Conn-Prov-Target-Topdesk-Operator_ is a _target_ connector. Topdesk provides a set of REST APIs that allow you to programmatically interact with its data. The [Topdesk API documentation](https://developers.topdesk.com/explorer/?page=supporting-files#/) provides details of API commands that are used.
+_HelloID-Conn-Prov-Target-TOPdesk-Operator_ is a _target_ connector. TOPdesk provides a set of REST APIs that allow you to programmatically interact with its data. The [TOPdesk API documentation](https://developers.topdesk.com/explorer/?page=supporting-files#/) provides details of API commands that are used.
 
 | Endpoint                   | Description                                                  |
 | -------------------------- | ------------------------------------------------------------ |
@@ -48,37 +48,13 @@ _HelloID-Conn-Prov-Target-Topdesk-Operator_ is a _target_ connector. Topdesk pro
 | /tas/api/budgetholders     | `GET` budgetholders to use in `PUT / PATCH` to operators     |
 | /tas/api/archiving-reasons | `GET` archiving-reasons to archive operators                 |
 
-The following lifecycle actions are available:
-
-| Action                         | Description                                                                                     |
-| ------------------------------ | ----------------------------------------------------------------------------------------------- |
-| create.ps1                     | PowerShell _create_ or _correlate_ lifecycle action                                             |
-| delete.ps1                     | PowerShell _delete_ lifecycle action (empty configured values and archive)                      |
-| disable.ps1                    | PowerShell _disable_ lifecycle action                                                           |
-| enable.ps1                     | PowerShell _enable_ lifecycle action                                                            |
-| update.ps1                     | PowerShell _update_ lifecycle action                                                            |
-| grant.operatorGroup.ps1        | PowerShell _grant_ operator group lifecycle action                                              |
-| revoke.operatorGroup.ps1       | PowerShell _revoke_ operator group lifecycle action                                             |
-| permissions.operatorGroups.ps1 | PowerShell _permissions_ get operator groups lifecycle action                                   |
-| grant.categoryFilter.ps1       | PowerShell _grant_ category filters lifecycle action                                            |
-| revoke.categoryFilter.ps1      | PowerShell _revoke_ category filters lifecycle action                                           |
-| permissions.categoryFilter.ps1 | PowerShell _permissions_ get category filters lifecycle action                                  |
-| grant.operatorFilter.ps1       | PowerShell _grant_ operator filters lifecycle action                                            |
-| revoke.operatorFilter.ps1      | PowerShell _revoke_ operator filters lifecycle action                                           |
-| permissions.operatorFilter.ps1 | PowerShell _permissions_ get operator filters lifecycle action                                  |
-| grant.task.ps1                 | PowerShell _grant_ task lifecycle action. Set concurrent actions to 1 to prevent timing issues  |
-| revoke.task.ps1                | PowerShell _revoke_ task lifecycle action. Set concurrent actions to 1 to prevent timing issues |
-| permissions.task.ps1           | PowerShell _permissions_ with static list of tasks                                              |
-| configuration.json             | Default _configuration.json_                                                                    |
-| fieldMapping.json              | Default _fieldMapping.json_                                                                     |
-
 ## Getting started
 
 ### Provisioning PowerShell V2 connector
 
 #### Correlation configuration
 
-The correlation configuration is used to specify which properties will be used to match an existing account within _HelloID-Conn-Prov-Target-Topdesk-Operators_ to a person in _HelloID_.
+The correlation configuration is used to specify which properties will be used to match an existing account within _HelloID-Conn-Prov-Target-TOPdesk-Operators_ to a person in _HelloID_.
 
 To properly setup the correlation:
 
@@ -100,8 +76,14 @@ To properly setup the correlation:
 The field mapping can be imported by using the [_fieldMapping.json_](./fieldMapping.json) file.
 
 > [!TIP]
-> You can add extra fields by adding them to the account mapping. For all possible options please check the [Topdesk API documentation](https://developers.topdesk.com/explorer/?page=supporting-files#/)
+> You can add extra fields by adding them to the account mapping. For all possible options please check the [TOPdesk API documentation](https://developers.topdesk.com/explorer/?page=supporting-files#/)
 
+> [!NOTE]
+> Starting November 2025, it will be mandatory to link a TOPdesk person to a TOPdesk operator.  
+> This is done by setting the `linkedPerson.id` field with the TOPdesk Person ID.  
+> You can achieve this by making the TOPdesk Operator target dependent on the TOPdesk Person target, and assigning the Person’s TOPdesk account ID to the `linkedPerson.id` field.  
+> By default, this mapping is included in the `fieldMapping.json` file.  
+> For more information, please refer to the [official documentation](https://docs.topdesk.com/en/step-2--api-changes.html).
 
 ### Connection settings
 
@@ -112,14 +94,13 @@ The following settings are required to connect to the API.
 | BaseUrl                             | The URL to the API                                                                                                      | Yes       |
 | UserName                            | The UserName to connect to the API                                                                                      | Yes       |
 | Password                            | The Password to connect to the API                                                                                      | Yes       |
-| Archiving reason                    | Fill in an archiving reason that is configured in Topdesk                                                               | Yes       |
-| When no item is found in Topdesk    | Stop processing and generate an error or keep the current value and continue if budgetHolder or Department is not found | Yes       |
-| When no department in source data   | Stop processing and generate an error or clear the department field in Topdesk                                          | Yes       |
-| When no budgetholder in source data | Stop processing and generate an error or clear the budgetholder field in Topdesk                                        | Yes       |
-| Toggle debug logging                | Creates extra logging for debug purposes                                                                                |
+| Archiving reason                    | Fill in an archiving reason that is configured in TOPdesk                                                               | Yes       |
+| When no item is found in TOPdesk    | Stop processing and generate an error or keep the current value and continue if budgetHolder or Department is not found | Yes       |
+| When no department in source data   | Stop processing and generate an error or clear the department field in TOPdesk                                          | Yes       |
+| When no budgetholder in source data | Stop processing and generate an error or clear the budgetholder field in TOPdesk                                        | Yes       |
 
 ### Prerequisites
-a archiving reason that is configured in Topdesk
+a archiving reason that is configured in TOPdesk
 Credentials with the rights listed below. 
 
 | Permission                | Read  | Write | Create | Delete | Archive |
@@ -136,14 +117,14 @@ Credentials with the rights listed below.
 | Use application passwords |       | __X__ |        |        |         |
 
 > [!NOTE]
-> It is possible to set filters in Topdesk. If you don't get a result from Topdesk when expecting one it is probably because filters are used. For example, searching for a branch that can't be found by the API user but is visible in Topdesk.
+> It is possible to set filters in TOPdesk. If you don't get a result from TOPdesk when expecting one it is probably because filters are used. For example, searching for a branch that can't be found by the API user but is visible in TOPdesk.
 
 
 ### Remarks
 
 ## Setup the connector
 
-### Remove attributes when updating a Topdesk operator instead of corelating
+### Remove attributes when updating a TOPdesk operator instead of corelating
 In the `update.ps1` script. There is an example of only set certain attributes when corelating a operator, but skipping them when updating them.
 
 ```powershell
@@ -158,7 +139,7 @@ In the `update.ps1` script. There is an example of only set certain attributes w
 
 ### Disable department or budgetholder
 
-The fields _department_ and _budgetholder_ are both non-required lookup fields in Topdesk. This means you first need to look up the field and then use the returned GUID (ID) to set the Topdesk operator. 
+The fields _department_ and _budgetholder_ are both non-required lookup fields in TOPdesk. This means you first need to look up the field and then use the returned GUID (ID) to set the TOPdesk operator. 
 
 For example:
 
@@ -169,7 +150,7 @@ For example:
 "externalLinks": []
 ```
 
-If you don't need the mapping of the department field or the budgetholder field in Topdesk, you can remove `department.lookupValue` or `budgetHolder.lookupValue` from the field mapping. The create and update script will skip the lookup action. 
+If you don't need the mapping of the department field or the budgetholder field in TOPdesk, you can remove `department.lookupValue` or `budgetHolder.lookupValue` from the field mapping. The create and update script will skip the lookup action. 
 
 > [!IMPORTANT]
 > The branch lookup value `branch.lookupValue` is still mandatory.

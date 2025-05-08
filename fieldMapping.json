@@ -342,6 +342,23 @@
           "StoreInAccountData": false
         }
       ]
+    },
+    {
+      "Name": "linkedPerson.id",
+      "Description": "[Mandatory]\nStarting November 2025, it will be mandatory to link a TOPdesk person to a TOPdesk operator.\nFor more information, please refer to the official documentation:\nhttps://docs.topdesk.com/en/step-2--api-changes.html",
+      "Type": "Text",
+      "MappingActions": [
+        {
+          "MapForActions": [
+            "Create",
+            "Update"
+          ],
+          "MappingMode": "Complex",
+          "Value": "\"function getPersonId() {\\n    let personId = '';\\n    if (typeof Person.Accounts.TOPdesk.id !== 'undefined' && Person.Accounts.TOPdesk.id) {\\n        personId = Person.Accounts.TOPdesk.id;\\n    }\\n    return personId;\\n}\\ngetPersonId();\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": false
+        }
+      ]
     }
   ],
   "UniqueFieldNames": []
