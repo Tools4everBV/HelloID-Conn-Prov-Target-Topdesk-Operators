@@ -3,18 +3,8 @@
 # PowerShell V2
 #####################################################
 
-$pRef = $actionContext.References.Permission
-$aRef = $actionContext.References.Account
-$baseUrl = $actionContext.Configuration.baseUrl
-
 # Set to true at start, because only when an error occurs it is set to false
 $outputContext.Success = $true
-
-# Set debug logging
-switch ($($actionContext.Configuration.isDebug)) {
-    $true { $VerbosePreference = 'Continue' }
-    $false { $VerbosePreference = 'SilentlyContinue' }
-}
 
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
@@ -191,7 +181,7 @@ function Set-TopdeskOperatorArchiveStatus {
     # Check the current status of the Person and compare it with the status in archiveStatus
     if ($archiveStatus -ne $TopdeskOperator.status) {
         # Archive / unarchive person
-        Write-Verbose "[$archiveUri] person with id [$($TopdeskOperator.id)]"
+        Write-Information "[$archiveUri] person with id [$($TopdeskOperator.id)]"
         $splatParams = @{
             Uri     = "$BaseUrl/tas/api/operators/id/$($TopdeskOperator.id)/$archiveUri"
             Method  = 'PATCH'
@@ -243,12 +233,12 @@ try {
             Set-TopdeskOperatorArchiveStatus @splatParamsOperatorUnarchive
         }
 
-        Write-Verbose "Granting operator group permission $($pRef.Name) ($($pRef.id)) to ($($aRef))"
+        Write-Information "Granting operator group $($actionContext.PermissionDisplayName) ($($actionContext.References.Permission.Id)) to $($actionContext.References.Account)"
         $splatParams = @{
-            Uri     = "$BaseUrl/tas/api/operators/id/$($aRef)/operatorgroups"
+            Uri     = "$($actionContext.Configuration.baseUrl)/tas/api/operators/id/$($actionContext.References.Account)/operatorgroups"
             Method  = 'POST'
             Headers = $authHeaders
-            Body    = ConvertTo-Json -InputObject @(@{ id = $($pRef.id) }) -Depth 10
+            Body    = ConvertTo-Json -InputObject @(@{ id = $($actionContext.References.Permission.Id) }) -Depth 10
         }
         $null = Invoke-TopdeskRestMethod @splatParams
         
@@ -266,24 +256,18 @@ try {
             Set-TopdeskOperatorArchiveStatus @splatParamsOperatorArchive
         }
 
-        Write-Verbose "Successfully granted operator group permission $($pRef.Name) ($($pRef.id)) to ($($aRef))"
+        Write-Information "Successfully granted operator group $($actionContext.PermissionDisplayName) ($($actionContext.References.Permission.Id)) to $($actionContext.References.Account)"
 
         $outputContext.AuditLogs.Add([PSCustomObject]@{
                 Action  = "GrantPermission"
-                Message = "Successfully granted operator group permission $($pRef.Name) ($($pRef.id)) to ($($actionContext.References.Account))"
+                Message = "Successfully granted operator group $($actionContext.PermissionDisplayName) ($($actionContext.References.Permission.Id)) to $($actionContext.References.Account)"
                 IsError = $false
             })
     }
     else {
         # Add an auditMessage showing what will happen during enforcement
-        Write-Warning "DryRun: Would grant operator group permission $($pRef.Name) ($($pRef.id)) to [$($personContext.Person.DisplayName)]"
-        $outputContext.AuditLogs.Add([PSCustomObject]@{
-                Action  = "GrantPermission"
-                Message = "DryRun: Would grant operator group permission $($pRef.Name) ($($pRef.id)) to [$($personContext.Person.DisplayName)]"
-                IsError = $false
-            })
-    } 
-
+        Write-Warning "DryRun: Would grant operator group permission $($actionContext.References.Permission.Id) to [$($personContext.Person.DisplayName)]"
+    }
 }
 catch {
     $ex = $PSItem

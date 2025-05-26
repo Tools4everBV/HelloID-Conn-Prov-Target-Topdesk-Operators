@@ -3,12 +3,6 @@
 # PowerShell V2
 #####################################################
 
-# Set debug logging
-switch ($($actionContext.Configuration.isDebug)) {
-    $true { $VerbosePreference = 'Continue' }
-    $false { $VerbosePreference = 'SilentlyContinue' }
-}
-
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
@@ -185,7 +179,7 @@ function Get-TopdeskDepartment {
         }
         else {
             # False, no department in lookup value = clear value
-            Write-Verbose "Clearing department. (lookupErrorHrDepartment = False)"
+            Write-Information "Clearing department. (lookupErrorHrDepartment = False)"
             $Account.department.PSObject.Properties.Remove('name')
             $Account.department | Add-Member -NotePropertyName id -NotePropertyValue $null
         }
@@ -213,7 +207,7 @@ function Get-TopdeskDepartment {
                 # False, no department found = remove department field (leave empty on creation or keep current value on update)
                 $Account.department.PSObject.Properties.Remove('name')
                 $Account.PSObject.Properties.Remove('department')
-                Write-Verbose "Not overwriting or setting department as it can't be found in Topdesk. (lookupErrorTopdesk = False)"
+                Write-Information "Not overwriting or setting department as it can't be found in Topdesk. (lookupErrorTopdesk = False)"
             }
         }
         else {
@@ -256,7 +250,7 @@ function Get-TopdeskBudgetHolder {
         }
         else {
             # False, no budgetholder in lookup value = clear value
-            Write-Verbose "Clearing budgetholder. (lookupErrorHrBudgetHolder = False)"
+            Write-Information "Clearing budgetholder. (lookupErrorHrBudgetHolder = False)"
             $Account.budgetHolder.PSObject.Properties.Remove('name')
             $Account.budgetHolder | Add-Member -NotePropertyName id -NotePropertyValue $null
         }
@@ -285,7 +279,7 @@ function Get-TopdeskBudgetHolder {
                 # False, no budgetholder found = remove budgetholder field (leave empty on creation or keep current value on update)
                 $Account.budgetHolder.PSObject.Properties.Remove('name')
                 $Account.PSObject.Properties.Remove('budgetHolder')
-                Write-Verbose "Not overwriting or setting budgetholder as it can't be found in Topdesk. (lookupErrorTopdesk = False)"
+                Write-Information "Not overwriting or setting budgetholder as it can't be found in Topdesk. (lookupErrorTopdesk = False)"
             }
         }
         else {
@@ -403,7 +397,7 @@ function Set-TopdeskOperatorArchiveStatus {
     # Check the current status of the Person and compare it with the status in archiveStatus
     if ($archiveStatus -ne $TopdeskOperator.status) {
         # Archive / unarchive person
-        Write-Verbose "[$archiveUri] person with id [$($TopdeskOperator.id)]"
+        Write-Information "[$archiveUri] person with id [$($TopdeskOperator.id)]"
         $splatParams = @{
             Uri     = "$BaseUrl/tas/api/operators/id/$($TopdeskOperator.id)/$archiveUri"
             Method  = 'PATCH'
@@ -433,7 +427,7 @@ function Set-TopdeskOperator {
         $TopdeskOperator
     )
 
-    Write-Verbose "Updating operator"
+    Write-Information "Updating operator"
 
     # Difference between GET and POST/PATCH operator for the field [initials] <--> [firstInitials] 
     # https://developers.topdesk.com/explorer/?page=supporting-files#/Operators/createOperator
@@ -490,7 +484,7 @@ try {
         Get-TopdeskDepartment @splatParamsDepartment  
     }
     else {
-        write-verbose "Mapping of [department.name] is missing to lookup the department in Topdesk. Action skipped"
+        Write-Information "Mapping of [department.name] is missing to lookup the department in Topdesk. Action skipped"
     }
 
     if ($Account.budgetHolder.PSObject.Properties.Name -Contains 'name') {
@@ -505,7 +499,7 @@ try {
         Get-TopdeskBudgetholder @splatParamsBudgetHolder
     }
     else {
-        write-verbose "Mapping of [budgetHolder.name] is missing to lookup the budgetHolder in Topdesk. Action skipped"
+        Write-Information "Mapping of [budgetHolder.name] is missing to lookup the budgetHolder in Topdesk. Action skipped"
     }
 
     # get operator
@@ -548,7 +542,6 @@ try {
         }
         if ($null -ne $accountSplatCompareProperties.ReferenceObject -and $null -ne $accountSplatCompareProperties.DifferenceObject) {
             $accountPropertiesChanged = Compare-Object @accountSplatCompareProperties -PassThru
-            $accountOldProperties = $accountPropertiesChanged | Where-Object { $_.SideIndicator -eq "<=" }
             $accountNewProperties = $accountPropertiesChanged | Where-Object { $_.SideIndicator -eq "=>" }
         }
 
@@ -570,19 +563,6 @@ try {
     #region Write
     switch ($action) {
         'Update' {
-            $accountChangedPropertiesObject = [PSCustomObject]@{
-                OldValues = @{}
-                NewValues = @{}
-            }
-        
-            foreach ($accountOldProperty in ($accountOldProperties | Where-Object { $_.Name -in $accountNewProperties.Name })) {
-                $accountChangedPropertiesObject.OldValues.$($accountOldProperty.Name) = $accountOldProperty.Value
-            }
-        
-            foreach ($accountNewProperty in $accountNewProperties) {
-                $accountChangedPropertiesObject.NewValues.$($accountNewProperty.Name) = $accountNewProperty.Value
-            }
-
             # Unarchive operator if required
             if ($TopdeskOperator.status -eq 'operatorArchived') {
 
@@ -616,7 +596,7 @@ try {
                 $TopdeskOperatorUpdated = Set-TopdeskOperator @splatParamsOperatorUpdate
             }
             else {
-                Write-Warning "DryRun would update account with id [$($TopdeskOperator.id)] and dynamicName [($($TopdeskOperator.dynamicName))]. Old values: $($accountChangedPropertiesObject.oldValues | ConvertTo-Json). New values: $($accountChangedPropertiesObject.newValues | ConvertTo-Json)"
+                Write-Warning "DryRun would update account with id [$($TopdeskOperator.id)] and dynamicName [($($TopdeskOperator.dynamicName))]"
             }
 
             # As the update process could be started for an inactive HelloID operator, the user return should be archived state
@@ -643,10 +623,10 @@ try {
             $outputContext.Data = $TopdeskOperatorUpdated
 
             if (-Not($actionContext.DryRun -eq $true)) {
-                Write-Information "Account with id [$($TopdeskOperator.id)] and dynamicName [($($TopdeskOperator.dynamicName))] successfully updated. Old values: $($accountChangedPropertiesObject.oldValues | ConvertTo-Json). New values: $($accountChangedPropertiesObject.newValues | ConvertTo-Json)"
+                Write-Information "Account with id [$($TopdeskOperator.id)] and dynamicName [($($TopdeskOperator.dynamicName))] successfully updated"
 
                 $outputContext.AuditLogs.Add([PSCustomObject]@{
-                        Message = "Account with id [$($TopdeskOperator.id)] and dynamicName [($($TopdeskOperator.dynamicName))] successfully updated. Old values: $($accountChangedPropertiesObject.oldValues | ConvertTo-Json). New values: $($accountChangedPropertiesObject.newValues | ConvertTo-Json)"
+                        Message = "Account with id [$($TopdeskOperator.id)] and dynamicName [($($TopdeskOperator.dynamicName))] successfully updated"
                         IsError = $false
                     })
             }

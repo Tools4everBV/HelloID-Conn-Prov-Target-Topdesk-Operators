@@ -6,13 +6,6 @@
 # Initialize default values
 $take = 100
 $skip = 0
-$baseUrl = $actionContext.Configuration.baseUrl
-
-# Set debug logging
-switch ($($actionContext.Configuration.isDebug)) {
-    $true { $VerbosePreference = 'Continue' }
-    $false { $VerbosePreference = 'SilentlyContinue' }
-}
 
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
@@ -90,14 +83,14 @@ try {
     }
     $authHeaders = Set-AuthorizationHeaders @splatParamsAuthorizationHeaders
 
-    Write-Verbose "Searching for operator groups"
+    Write-Information "Searching for operator groups"
     $operatorGroups = [System.Collections.ArrayList]@()
     $paged = $true
     while ($paged) {
 
         # Get operatorgroups
         $splatParams = @{
-            Uri     = "$baseUrl/tas/api/operatorgroups/?start=$skip&page_size=$take"
+            Uri     = "$($actionContext.Configuration.baseUrl)/tas/api/operatorgroups/?start=$skip&page_size=$take"
             Method  = 'GET'
             Headers = $authHeaders
         }
@@ -119,20 +112,36 @@ try {
             [void]$operatorGroups.Add($operatorGroupsResponse)
         }
     }
+
+    foreach ($group in $operatorGroups) {
+        $outputContext.Permissions.Add(
+            @{
+                DisplayName    = "Operator group - $($group.groupName)"
+                Identification = @{
+                    Id   = $group.id
+                    Name = $group.groupName
+                    Type = "OperatorGroup"
+                }
+            }
+        )
+    }
 }
 catch {
-    throw $_
-}
+    $ex = $PSItem
+    if ($($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or
+        $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
 
-foreach ($group in $operatorGroups) {
-    $outputContext.Permissions.Add(
-        @{
-            displayName    = "OperatorGroup - $($group.groupName)";
-            identification = @{
-                Id   = $group.id
-                Name = $group.groupName
-                Type = "OperatorGroup"
-            }
+        if (-Not [string]::IsNullOrEmpty($ex.ErrorDetails.Message)) {
+            Write-Information "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.ErrorDetails.Message)"
+            Write-Error "Could not retrieve operator groups. Error: $($ex.ErrorDetails.Message)"
         }
-    )
+        else {
+            Write-Information "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+            Write-Error "Could not retrieve operator groups. Error: $($ex.Exception.Message)"
+        }
+    }
+    else {
+        Write-Information "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+        Write-Error "Could not retrieve operator groups. Error: $($ex.Exception.Message)"
+    }
 }
