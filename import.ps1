@@ -20,6 +20,9 @@ try {
     if ('dynamicName' -notin $importFields) { $importFields += 'dynamicName' }
     if ('loginName' -notin $importFields) { $importFields += 'loginName' }
 
+    # Example how to filter out users that are deleted by HelloID (Reconciliation)
+    # if ('mainframeLoginName' -notin $importFields) { $importFields += 'mainframeLoginName' }
+
     # Convert to a ',' string
     $fields = $importFields -join ','
     Write-Information "Querying fields [$fields]"
@@ -77,6 +80,9 @@ try {
         Write-Information "Successfully queried [$($existingAccounts.count)] existing account"
         
     } while ($partialResultUsers.Count -eq $pageSize)
+
+    # Example how to filter out users that are deleted by HelloID (Reconciliation)
+    # $existingAccounts = $existingAccounts | Where-Object {$_.mainframeLoginName -ne 'Deleted by HelloID'}
 
     # Map the imported data to the account field mappings
     foreach ($account in $existingAccounts) {
