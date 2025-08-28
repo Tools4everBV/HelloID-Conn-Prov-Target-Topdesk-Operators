@@ -258,12 +258,11 @@ try {
         $data = [pscustomobject]@{ 
             email            = ''
             networkLoginName = ''
-            tasLoginName     = ''
+            loginName     = ''
+            exchangeAccount = ''
             # mainframeLoginName = 'Deleted by HelloID'
         }
         $actionContext | Add-Member -MemberType NoteProperty -Name 'data' -Value $data -Force
-
-        # Additional endpoint Reconciliation
     }
 
     $account = $actionContext.Data
