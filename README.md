@@ -30,13 +30,18 @@
 ## Introduction
 
 Supported features:
-| Feature                             | Supported | Actions                                                                     | Remarks |
-| ----------------------------------- | --------- | --------------------------------------------------------------------------- | ------- |
-| **Account Lifecycle**               | ✅         | Create, Update, Enable, Disable, Delete (disable with option to clear data) |         |
-| **Permissions**                     | ✅         | Operator groups, operator filters, category filters and tasks               |         |
-| **Resources**                       | ❌         | -                                                                           |         |
-| **Entitlement Import: Accounts**    | ✅         | -                                                                           |         |
-| **Entitlement Import: Permissions** | ✅         | -                                                                           |         |
+| Feature                                   | Supported | Actions                                                                     | Remarks                                                                                                                                   |
+| ----------------------------------------- | --------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| **Account Lifecycle**                     | ✅         | Create, Update, Enable, Disable, Delete (disable with option to clear data) |                                                                                                                                           |
+| **Permissions**                           | ✅         | Operator groups, operator filters, category filters and tasks               |                                                                                                                                           |
+| **Resources**                             | ❌         | -                                                                           |                                                                                                                                           |
+| **Entitlement Import: Accounts**          | ✅         | -                                                                           |                                                                                                                                           |
+| **Entitlement Import: Permissions**       | ✅         | -                                                                           |                                                                                                                                           |
+| **Governance Reconciliation Resolutions** | ✅         | Revoke, Disable, Delete                                                     | Delete is treated as a disable action with the option to update values. Please adjust the configuration accordingly in the delete script* |
+
+> [!NOTE]
+> By default all archived operators are also retrieved by the import script(s). To prevent this we provide a example solution to filter by a property. For example `mainframeLoginName = 'Deleted by HelloID'`.
+
 
 _HelloID-Conn-Prov-Target-TOPdesk-Operator_ is a _target_ connector. TOPdesk provides a set of REST APIs that allow you to programmatically interact with its data. The [TOPdesk API documentation](https://developers.topdesk.com/explorer/?page=supporting-files#/) provides details of API commands that are used.
 
