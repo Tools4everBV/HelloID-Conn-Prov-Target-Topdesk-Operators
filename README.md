@@ -37,6 +37,7 @@ Supported features:
 | **Resources**                       | ❌         | -                                                                           |         |
 | **Entitlement Import: Accounts**    | ✅         | -                                                                           |         |
 | **Entitlement Import: Permissions** | ❌         | -                                                                           |         |
+| **Governance Reconciliation Resolutions** | ✅        | Disable, Delete                                       | Delete is treated as a disable action with the option to update values. Please adjust the configuration accordingly in the delete script |
 
 _HelloID-Conn-Prov-Target-TOPdesk-Operator_ is a _target_ connector. TOPdesk provides a set of REST APIs that allow you to programmatically interact with its data. The [TOPdesk API documentation](https://developers.topdesk.com/explorer/?page=supporting-files#/) provides details of API commands that are used.
 

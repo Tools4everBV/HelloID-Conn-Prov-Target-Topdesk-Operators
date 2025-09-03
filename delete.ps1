@@ -254,6 +254,17 @@ function Set-TopdeskOperator {
 try {
     $action = 'Process'
 
+    if ($actionContext.Origin -eq 'reconciliation') {
+        $data = [pscustomobject]@{ 
+            email            = ''
+            networkLoginName = ''
+            loginName     = ''
+            exchangeAccount = ''
+            # mainframeLoginName = 'Deleted by HelloID'
+        }
+        $actionContext | Add-Member -MemberType NoteProperty -Name 'data' -Value $data -Force
+    }
+
     $account = $actionContext.Data
 
     # Setup authentication headers
