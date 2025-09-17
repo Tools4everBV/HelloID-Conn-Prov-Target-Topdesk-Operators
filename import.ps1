@@ -94,19 +94,25 @@ try {
 
         # Make sure the DisplayName has a value
         if ([string]::IsNullOrEmpty($account.dynamicName)) {
-            $account.dynamicName = $account.id
+            $dynamicName = $account.id
+        }
+        else{
+            $dynamicName = $account.dynamicName
         }
 
         # Make sure the Username has a value
         if ([string]::IsNullOrEmpty($account.loginName)) {
-            $account.loginName = $account.id
+            $loginName = $account.id
+        }
+        else {
+            $loginName = $account.loginName
         }
 
         # Return the result
         Write-Output @{
             AccountReference = $account.id
-            DisplayName      = $account.dynamicName
-            UserName         = $account.loginName
+            DisplayName      = $dynamicName
+            UserName         = $loginName
             Enabled          = $enabled
             Data             = $account
         }
