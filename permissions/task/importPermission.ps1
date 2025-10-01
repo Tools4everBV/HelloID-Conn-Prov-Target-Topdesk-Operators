@@ -6,22 +6,43 @@
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
-try {       
+#region functions
+function Set-AuthorizationHeaders {
+    param (
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $Username,
+
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $ApiKey
+    )
+    # Create basic authentication string
+    $bytes = [System.Text.Encoding]::ASCII.GetBytes("${Username}:${Apikey}")
+    $base64 = [System.Convert]::ToBase64String($bytes)
+
+    # Set authentication headers
+    $authHeaders = [System.Collections.Generic.Dictionary[string, string]]::new()
+    $authHeaders.Add("Authorization", "BASIC $base64")
+    $authHeaders.Add('Accept', 'application/json; charset=utf-8')
+    $authHeaders.Add('Partner-Solution-Id', 'TOOL001') # Fixed value - Tools4ever Partner Solution ID
+
+    Write-Output $authHeaders
+}
+#endregion functions
+
+try {      
     Write-Information 'Starting target account permission import'
 
     # Define permissions
     $fields = 'problemManager,problemOperator,changeCoordinator,changeActivitiesOperator,requestForChangeOperator,extensiveChangeOperator,simpleChangeOperator,scenarioManager,planningActivityManager,projectCoordinator,projectActiviesOperator,stockManager,reservationsOperator,serviceOperator,externalHelpDeskParty,contractManager,operationsOperator,operationsManager,knowledgeBaseManager,accountManager'
 
-    # Create basic authentication string
-    $username = $actionContext.Configuration.username
-    $apikey = $actionContext.Configuration.apikey
-    $bytes = [System.Text.Encoding]::ASCII.GetBytes("${username}:${apikey}")
-    $base64 = [System.Convert]::ToBase64String($bytes)
-
-    # Set authentication headers
-    $headers = [System.Collections.Generic.Dictionary[string, string]]::new()
-    $headers.Add("Authorization", "BASIC $base64")
-    $headers.Add('Accept', 'application/json; charset=utf-8')
+    # Setup authentication headers
+    $splatParamsAuthorizationHeaders = @{
+        UserName = $actionContext.Configuration.username
+        ApiKey   = $actionContext.Configuration.apikey
+    }
+    $headers = Set-AuthorizationHeaders @splatParamsAuthorizationHeaders
 
     $existingAccounts = @()
     $pageSize = 100
