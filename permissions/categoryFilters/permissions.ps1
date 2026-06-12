@@ -1,5 +1,5 @@
 #####################################################
-# HelloID-Conn-Prov-Target-Topdesk-Operators-Permissions-OperatorFilters
+# HelloID-Conn-Prov-Target-Topdesk-Operators-Permissions-CategoryFilters
 # PowerShell V2
 #####################################################
 
@@ -76,6 +76,7 @@ function Invoke-TopdeskRestMethod {
 #endregion functions
 
 try {
+
     # Setup authentication headers
     $splatParamsAuthorizationHeaders = @{
         UserName = $actionContext.Configuration.username
@@ -83,44 +84,42 @@ try {
     }
     $authHeaders = Set-AuthorizationHeaders @splatParamsAuthorizationHeaders
 
-    Write-Information "Searching for operator filters"
-    $operatorFilters = [System.Collections.ArrayList]@()
+    Write-Information "Searching for category filters"
+    $categoryFilters = [System.Collections.ArrayList]@()
     $paged = $true
     while ($paged) {
 
-        # Get OperatorFilters
+        # Get CategoryFilters
         $splatParams = @{
-            Uri     = "$($actionContext.Configuration.baseUrl)/tas/api/operators/filters/operator/?start=$skip&page_size=$take"
+            Uri     = "$($actionContext.Configuration.baseUrl)/tas/api/operators/filters/category/?start=$skip&page_size=$take"
             Method  = 'GET'
             Headers = $authHeaders
         }
-        $operatorFiltersResponse = Invoke-TopdeskRestMethod @splatParams
+        $categoryFiltersResponse = Invoke-TopdeskRestMethod @splatParams
 
         # Set $paged to false (to end loop) when response is less than take, indicating there are no more records to query
-        if ($operatorFiltersResponse.id.count -lt $take) {
-            $paged = $false
+        if ($categoryFiltersResponse.id.count -lt $take) {
+            $paged = $false;
         }
         # Else: Up skip with take to skip the already queried records
         else {
-            $skip = $skip + $take
+            $skip = $skip + $take;
         }
 
-        if ($operatorFiltersResponse -is [array]) {
-            [void]$operatorFilters.AddRange($operatorFiltersResponse)
+        if ($categoryFiltersResponse -is [array]) {
+            [void]$categoryFilters.AddRange($categoryFiltersResponse)
         }
         else {
-            [void]$operatorFilters.Add($operatorFiltersResponse)
+            [void]$categoryFilters.Add($categoryFiltersResponse)
         }
     }
 
-    foreach ($filter in $operatorFilters) {
+    foreach ($filter in $categoryFilters) {
         $outputContext.Permissions.Add(
             @{
-                DisplayName    = "Operator filter - $($filter.name)"
+                DisplayName    = "Category filter - $($filter.name)"
                 Identification = @{
-                    Id   = $filter.id
-                    Name = $filter.name
-                    Type = "OperatorFilter"
+                    Id = $filter.id
                 }
             }
         )
@@ -133,15 +132,15 @@ catch {
 
         if (-Not [string]::IsNullOrEmpty($ex.ErrorDetails.Message)) {
             Write-Information "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.ErrorDetails.Message)"
-            Write-Error "Could not retrieve operator filters. Error: $($ex.ErrorDetails.Message)"
+            Write-Error "Could not retrieve category filters. Error: $($ex.ErrorDetails.Message)"
         }
         else {
             Write-Information "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
-            Write-Error "Could not retrieve operator filters. Error: $($ex.Exception.Message)"
+            Write-Error "Could not retrieve category filters. Error: $($ex.Exception.Message)"
         }
     }
     else {
         Write-Information "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
-        Write-Error "Could not retrieve operator filters. Error: $($ex.Exception.Message)"
+        Write-Error "Could not retrieve category filters. Error: $($ex.Exception.Message)"
     }
 }
