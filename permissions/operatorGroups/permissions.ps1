@@ -1,5 +1,5 @@
 #####################################################
-# HelloID-Conn-Prov-Target-Topdesk-Operators-Permissions-Groups
+# HelloID-Conn-Prov-Target-Topdesk-Operators-Permissions-OperatorGroups
 # PowerShell V2
 #####################################################
 

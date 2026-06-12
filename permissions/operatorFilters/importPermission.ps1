@@ -1,5 +1,5 @@
 #####################################################
-# HelloID-Conn-Prov-Target-Topdesk-Operators-ImportPermission-CategoryFilters
+# HelloID-Conn-Prov-Target-Topdesk-Operators-ImportPermission-OperatorFilters
 # PowerShell V2
 #####################################################
 
@@ -84,16 +84,17 @@ try {
         
     } while ($partialResultUsers.Count -eq $pageSize)
 
+
     Write-Information 'Starting getting permission memberships of each account'
 
     foreach ($account in $existingAccounts) {
         $splatGetGroupMembers = @{
-            Uri         = "$($actionContext.Configuration.baseUrl)/tas/api/operators/id/$($account.id)/filters/category"
+            Uri         = "$($actionContext.Configuration.baseUrl)/tas/api/operators/id/$($account.id)/filters/operator"
             Headers     = $headers
             Method      = 'GET'
             ContentType = 'application/json; charset=utf-8'
         }
-          
+        
         [array]$existingPermissions = Invoke-RestMethod @splatGetGroupMembers
 
         if (-not([string]::IsNullOrEmpty($existingPermissions))) {
@@ -106,8 +107,6 @@ try {
                         PermissionReference = @{
                             Id = $permission.id
                         }
-                        Description         = "Category filter $($permission.name)"
-                        DisplayName         = $permission.name
                     }
                 )
             }

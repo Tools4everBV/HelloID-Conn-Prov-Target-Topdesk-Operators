@@ -1,5 +1,5 @@
 #####################################################
-# HelloID-Conn-Prov-Target-Topdesk-Operators-ImportPermission-Tasks
+# HelloID-Conn-Prov-Target-Topdesk-Operators-ImportPermission-CategoryFilters
 # PowerShell V2
 #####################################################
 
@@ -34,9 +34,6 @@ function Set-AuthorizationHeaders {
 try {      
     Write-Information 'Starting target account permission import'
 
-    # Define permissions
-    $fields = 'problemManager,problemOperator,changeCoordinator,changeActivitiesOperator,requestForChangeOperator,extensiveChangeOperator,simpleChangeOperator,scenarioManager,planningActivityManager,projectCoordinator,projectActiviesOperator,stockManager,reservationsOperator,serviceOperator,externalHelpDeskParty,contractManager,operationsOperator,operationsManager,knowledgeBaseManager,accountManager'
-
     # Setup authentication headers
     $splatParamsAuthorizationHeaders = @{
         UserName = $actionContext.Configuration.username
@@ -50,7 +47,7 @@ try {
     # Get active operators
     $pageStart = 0
     do {
-        $uri = "$($actionContext.Configuration.baseUrl)/tas/api/operators?start=$pageStart&page_size=$pageSize&query=archived==false&fields=id,$fields"
+        $uri = "$($actionContext.Configuration.baseUrl)/tas/api/operators?start=$pageStart&page_size=$pageSize&query=archived==false&fields=id"
 
         $splatParams = @{
             Uri         = $uri
@@ -70,7 +67,7 @@ try {
     # Get archived operators
     $pageStart = 0
     do {
-        $uri = "$($actionContext.Configuration.baseUrl)/tas/api/operators?start=$pageStart&page_size=$pageSize&query=archived==true&fields=id,$fields"
+        $uri = "$($actionContext.Configuration.baseUrl)/tas/api/operators?start=$pageStart&page_size=$pageSize&query=archived==true&fields=id"
 
         $splatParams = @{
             Uri         = $uri
@@ -87,22 +84,28 @@ try {
         
     } while ($partialResultUsers.Count -eq $pageSize)
 
-    Write-Information 'Starting returning accounts to HelloID for each permission'
+    Write-Information 'Starting getting permission memberships of each account'
 
     foreach ($account in $existingAccounts) {
-        $permissions = $account.PSObject.Properties | Where-Object { $_.Value -eq $true }
-        if ($null -ne $permissions) {
-            foreach ($permission in $permissions) {
+        $splatGetGroupMembers = @{
+            Uri         = "$($actionContext.Configuration.baseUrl)/tas/api/operators/id/$($account.id)/filters/category"
+            Headers     = $headers
+            Method      = 'GET'
+            ContentType = 'application/json; charset=utf-8'
+        }
+          
+        [array]$existingPermissions = Invoke-RestMethod @splatGetGroupMembers
+
+        if (-not([string]::IsNullOrEmpty($existingPermissions))) {
+            foreach ($permission in $existingPermissions) {
                 Write-Output @(
                     @{
-                        AccountReferences   = @(
+                        AccountReferences   = @( 
                             $account.id
                         )
                         PermissionReference = @{
-                            Reference = $permission.name
+                            Id = $permission.id
                         }
-                        Description         = "Task $($permission.name)"
-                        DisplayName         = $permission.name
                     }
                 )
             }

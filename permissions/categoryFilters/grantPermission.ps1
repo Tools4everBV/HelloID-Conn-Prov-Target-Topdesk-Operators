@@ -1,20 +1,13 @@
-###################################################################
-# HelloID-Conn-Prov-Target-Topdesk-Operators-GrantPermission-Task
+#####################################################
+# HelloID-Conn-Prov-Target-Topdesk-Operators-GrantPermission-CategoryFilters
 # PowerShell V2
 #####################################################
-
-$pRef = $actionContext.References.Permission
 
 # Set to true at start, because only when an error occurs it is set to false
 $outputContext.Success = $true
 
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
-
-# Account mapping. See for all possible options the Topdesk 'supporting files' API documentation at
-$account = [PSCustomObject]@{
-    $($pRef.Reference) = $true
-}
 
 #region functions
 function Set-AuthorizationHeaders {
@@ -200,34 +193,6 @@ function Set-TopdeskOperatorArchiveStatus {
         $TopdeskOperator.status = $archiveStatus
     }
 }
-
-function Set-TopdeskOperator {
-    param (
-        [ValidateNotNullOrEmpty()]
-        [string]
-        $BaseUrl,
-
-        [System.Collections.IDictionary]
-        $Headers,
-
-        [ValidateNotNullOrEmpty()]
-        [Object]
-        $Account,
-
-        [ValidateNotNullOrEmpty()]
-        [Object]
-        $TopdeskOperator
-    )
-
-    Write-Information "Updating operator"
-    $splatParams = @{
-        Uri     = "$BaseUrl/tas/api/operators/id/$($TopdeskOperator.id)"
-        Method  = 'PATCH'
-        Headers = $Headers
-        Body    = $Account | ConvertTo-Json
-    }
-    $null = Invoke-TopdeskRestMethod @splatParams
-}
 #endregion functions
 
 #region lookup
@@ -253,7 +218,7 @@ try {
     }
     #endregion lookup 
     
-    #region write
+    #region write 
     if (-Not($actionContext.DryRun -eq $true)) {          
         if ($TopdeskOperator.status -eq 'operatorArchived') {
 
@@ -269,15 +234,14 @@ try {
             Set-TopdeskOperatorArchiveStatus @splatParamsOperatorUnarchive
         }
 
-        Write-Information "Granting task permission $($pRef.Reference) to ($($actionContext.References.Account))"      
-        # Update TOPdesk operator
-        $splatParamsOperatorUpdate = @{
-            TopdeskOperator = $TopdeskOperator
-            Account         = $account
-            Headers         = $authHeaders
-            BaseUrl         = $actionContext.Configuration.baseUrl
+        Write-Information "Granting category filter permission $($actionContext.PermissionDisplayName) ($($actionContext.References.Permission.Id)) to $($actionContext.References.Account)"
+        $splatParams = @{
+            Uri     = "$($actionContext.Configuration.baseUrl)/tas/api/operators/id/$($actionContext.References.Account)/filters/category"
+            Method  = 'POST'
+            Headers = $authHeaders
+            Body    = ConvertTo-Json -InputObject @(@{ id = $($actionContext.References.Permission.Id) }) -Depth 10
         }
-        Set-TopdeskOperator @splatParamsOperatorUpdate
+        $null = Invoke-TopdeskRestMethod @splatParams
         
         # As the update process could be started for an inactive HelloID operator, the user return should be archived state
         if ($shouldArchive) {
@@ -293,17 +257,17 @@ try {
             Set-TopdeskOperatorArchiveStatus @splatParamsOperatorArchive
         }
 
-        Write-Information "Successfully granted task permission $($pRef.Reference) to ($($actionContext.References.Account))"
+        Write-Information "Successfully granted category filter $($actionContext.PermissionDisplayName) ($($actionContext.References.Permission.Id)) to $($actionContext.References.Account)"
 
         $outputContext.AuditLogs.Add([PSCustomObject]@{
                 Action  = "GrantPermission"
-                Message = "Successfully granted task permission $($pRef.Reference) to ($($actionContext.References.Account))"
+                Message = "Successfully granted category filter $($actionContext.PermissionDisplayName) ($($actionContext.References.Permission.Id)) to $($actionContext.References.Account)"
                 IsError = $false
             })
     }
     else {
         # Add an auditMessage showing what will happen during enforcement
-        Write-Warning "DryRun: Would grant task permission $($pRef.Reference) to [$($personContext.Person.DisplayName)]"
+        Write-Warning "DryRun: Would grant category filter $($actionContext.References.Permission.Id) to $($personContext.Person.DisplayName)"
     } 
 
 }
@@ -313,14 +277,14 @@ catch {
         $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
 
         if (-Not [string]::IsNullOrEmpty($ex.ErrorDetails.Message)) {
-            $errorMessage = "Could not grant task permission: $($ex.ErrorDetails.Message)"
+            $errorMessage = "Could not grant category filter permission: $($ex.ErrorDetails.Message)"
         }
         else {
-            $errorMessage = "Could not grant task permission Error: $($ex.Exception.Message)"
+            $errorMessage = "Could not grant category filter permission Error: $($ex.Exception.Message)"
         }
     }
     else {
-        $errorMessage = "Could not grant task permission. Error: $($ex.Exception.Message) $($ex.ScriptStackTrace)"
+        $errorMessage = "Could not grant category filter permission. Error: $($ex.Exception.Message) $($ex.ScriptStackTrace)"
     }
 
     # Only log when there are no lookup values, as these generate their own audit message

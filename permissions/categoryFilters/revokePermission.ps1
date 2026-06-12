@@ -1,5 +1,5 @@
 #####################################################
-# HelloID-Conn-Prov-Target-Topdesk-Operators-RevokePermission-Group
+# HelloID-Conn-Prov-Target-Topdesk-Operators-RevokePermission-CategoryFilters
 # PowerShell V2
 #####################################################
 
@@ -234,10 +234,10 @@ try {
             Set-TopdeskOperatorArchiveStatus @splatParamsOperatorUnarchive
         }
 
-        Write-Information "Revoking operator group $($actionContext.PermissionDisplayName) ($($actionContext.References.Permission.Id)) from $($actionContext.References.Account)"
+        Write-Information "Revoking category filter $($actionContext.PermissionDisplayName) ($($actionContext.References.Permission.Id)) from $($actionContext.References.Account)"
         $splatParams = @{
-            Uri     = "$($actionContext.Configuration.baseUrl)/tas/api/operators/id/$($actionContext.References.Account)/operatorgroups"
-            Method  = 'Delete'
+            Uri     = "$($actionContext.Configuration.baseUrl)/tas/api/operators/id/$($actionContext.References.Account)/filters/category"
+            Method  = 'DELETE'
             Headers = $authHeaders
             Body    = ConvertTo-Json -InputObject @(@{ id = $($actionContext.References.Permission.Id) }) -Depth 10
         }
@@ -257,18 +257,19 @@ try {
             Set-TopdeskOperatorArchiveStatus @splatParamsOperatorArchive
         }
 
-        Write-Information "Successfully revoked operator group $($actionContext.PermissionDisplayName) ($($actionContext.References.Permission.Id)) from $($actionContext.References.Account)"
+        Write-Information "Successfully revoked category filter $($actionContext.PermissionDisplayName) ($($actionContext.References.Permission.Id)) from $($actionContext.References.Account)"
 
         $outputContext.AuditLogs.Add([PSCustomObject]@{
                 Action  = "RevokePermission"
-                Message = "Successfully revoked operator group $($actionContext.PermissionDisplayName) ($($actionContext.References.Permission.Id)) from $($actionContext.References.Account)"
+                Message = "Successfully revoked category filter $($actionContext.PermissionDisplayName) ($($actionContext.References.Permission.Id)) from $($actionContext.References.Account)"
                 IsError = $false
             })
     }
     else {
         # Add an auditMessage showing what will happen during enforcement
-        Write-Warning "DryRun: Would revoke operator group $($actionContext.References.Permission.Id) from $($personContext.Person.DisplayName)"
+        Write-Warning "DryRun: Would revoke category filter $($actionContext.PermissionDisplayName) ($($actionContext.References.Permission.Id)) from $($personContext.Person.DisplayName)"
     } 
+
 }
 catch {
     $ex = $PSItem
@@ -276,14 +277,14 @@ catch {
         $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
 
         if (-Not [string]::IsNullOrEmpty($ex.ErrorDetails.Message)) {
-            $errorMessage = "Could not revoke operator group permission: $($ex.ErrorDetails.Message)"
+            $errorMessage = "Could not revoke category filter permission: $($ex.ErrorDetails.Message)"
         }
         else {
-            $errorMessage = "Could not revoke operator group permission Error: $($ex.Exception.Message)"
+            $errorMessage = "Could not revoke category filter permission Error: $($ex.Exception.Message)"
         }
     }
     else {
-        $errorMessage = "Could not revoke operator group permission. Error: $($ex.Exception.Message) $($ex.ScriptStackTrace)"
+        $errorMessage = "Could not revoke category filter permission. Error: $($ex.Exception.Message) $($ex.ScriptStackTrace)"
     }
 
     # Only log when there are no lookup values, as these generate their own audit message

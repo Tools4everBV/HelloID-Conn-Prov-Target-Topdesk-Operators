@@ -1,5 +1,5 @@
 #####################################################
-# HelloID-Conn-Prov-Target-Topdesk-Operators-importPermission-Group
+# HelloID-Conn-Prov-Target-Topdesk-Operators-ImportPermission-Tasks
 # PowerShell V2
 #####################################################
 
@@ -34,6 +34,9 @@ function Set-AuthorizationHeaders {
 try {      
     Write-Information 'Starting target account permission import'
 
+    # Define permissions
+    $fields = 'problemManager,problemOperator,changeCoordinator,changeActivitiesOperator,requestForChangeOperator,extensiveChangeOperator,simpleChangeOperator,scenarioManager,planningActivityManager,projectCoordinator,projectActiviesOperator,stockManager,reservationsOperator,serviceOperator,externalHelpDeskParty,contractManager,operationsOperator,operationsManager,knowledgeBaseManager,accountManager'
+
     # Setup authentication headers
     $splatParamsAuthorizationHeaders = @{
         UserName = $actionContext.Configuration.username
@@ -41,52 +44,66 @@ try {
     }
     $headers = Set-AuthorizationHeaders @splatParamsAuthorizationHeaders
 
-    $existingPermissions = @()
+    $existingAccounts = @()
     $pageSize = 100
-    $pageStart = 0
-   
-    do {
-        $uri = "$($actionContext.Configuration.baseUrl)/tas/api/operatorgroups?start=$pageStart&page_size=$pageSize&fields=id,groupName"
 
-        $splatGetGroups = @{
+    # Get active operators
+    $pageStart = 0
+    do {
+        $uri = "$($actionContext.Configuration.baseUrl)/tas/api/operators?start=$pageStart&page_size=$pageSize&query=archived==false&fields=id,$fields"
+
+        $splatParams = @{
             Uri         = $uri
             Headers     = $headers
             Method      = 'GET'
             ContentType = 'application/json; charset=utf-8'
         }
     
-        $partialResultGroups = Invoke-RestMethod @splatGetGroups
-        $existingPermissions += $partialResultGroups
+        $partialResultUsers = Invoke-RestMethod @splatParams
+        $existingAccounts += $partialResultUsers
         $pageStart = $pageStart + $pageSize
 
-        Write-Information "Successfully queried [$($existingPermissions.count)] existing permissions"
+        Write-Information "Successfully queried [$($existingAccounts.count)] existing accounts"
         
     } while ($partialResultUsers.Count -eq $pageSize)
 
-    Write-Information 'Starting getting account memberships of each permission'
+    # Get archived operators
+    $pageStart = 0
+    do {
+        $uri = "$($actionContext.Configuration.baseUrl)/tas/api/operators?start=$pageStart&page_size=$pageSize&query=archived==true&fields=id,$fields"
 
-    foreach ($permission in $existingPermissions) {       
-        $splatGetGroupMembers = @{
-            Uri         = "$($actionContext.Configuration.baseUrl)/tas/api/operatorgroups/id/$($permission.id)/operators"
+        $splatParams = @{
+            Uri         = $uri
             Headers     = $headers
             Method      = 'GET'
             ContentType = 'application/json; charset=utf-8'
         }
-            
-        [array]$groupMembers = (Invoke-RestMethod @splatGetGroupMembers).id
+    
+        $partialResultUsers = Invoke-RestMethod @splatParams
+        $existingAccounts += $partialResultUsers
+        $pageStart = $pageStart + $pageSize
 
-        if ($groupMembers.count -gt 0) {
-            Write-Output @(
-                @{
-                    AccountReferences   = $groupMembers
-                    PermissionReference = @{
-                        Id = $permission.id
+        Write-Information "Successfully queried [$($existingAccounts.count)] existing account"
+        
+    } while ($partialResultUsers.Count -eq $pageSize)
+
+    Write-Information 'Starting returning accounts to HelloID for each permission'
+
+    foreach ($account in $existingAccounts) {
+        $permissions = $account.PSObject.Properties | Where-Object { $_.Value -eq $true }
+        if ($null -ne $permissions) {
+            foreach ($permission in $permissions) {
+                Write-Output @(
+                    @{
+                        AccountReferences   = @(
+                            $account.id
+                        )
+                        PermissionReference = @{
+                            Reference = $permission.name
+                        }
                     }
-                    Description         = "Operator group $($permission.groupName)"
-                    DisplayName         = $permission.groupName
-                }
-            )
-
+                )
+            }
         }
     }
 

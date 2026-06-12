@@ -1,5 +1,5 @@
 #####################################################
-# HelloID-Conn-Prov-Target-Topdesk-Operators-ImportPermission-OperatorFilters
+# HelloID-Conn-Prov-Target-Topdesk-Operators-importPermission-OperatorGroups
 # PowerShell V2
 #####################################################
 
@@ -41,77 +41,50 @@ try {
     }
     $headers = Set-AuthorizationHeaders @splatParamsAuthorizationHeaders
 
-    $existingAccounts = @()
+    $existingPermissions = @()
     $pageSize = 100
-
-    # Get active operators
     $pageStart = 0
+   
     do {
-        $uri = "$($actionContext.Configuration.baseUrl)/tas/api/operators?start=$pageStart&page_size=$pageSize&query=archived==false&fields=id"
+        $uri = "$($actionContext.Configuration.baseUrl)/tas/api/operatorgroups?start=$pageStart&page_size=$pageSize&fields=id,groupName"
 
-        $splatParams = @{
+        $splatGetGroups = @{
             Uri         = $uri
             Headers     = $headers
             Method      = 'GET'
             ContentType = 'application/json; charset=utf-8'
         }
     
-        $partialResultUsers = Invoke-RestMethod @splatParams
-        $existingAccounts += $partialResultUsers
+        $partialResultGroups = Invoke-RestMethod @splatGetGroups
+        $existingPermissions += $partialResultGroups
         $pageStart = $pageStart + $pageSize
 
-        Write-Information "Successfully queried [$($existingAccounts.count)] existing accounts"
+        Write-Information "Successfully queried [$($existingPermissions.count)] existing permissions"
         
     } while ($partialResultUsers.Count -eq $pageSize)
 
-    # Get archived operators
-    $pageStart = 0
-    do {
-        $uri = "$($actionContext.Configuration.baseUrl)/tas/api/operators?start=$pageStart&page_size=$pageSize&query=archived==true&fields=id"
+    Write-Information 'Starting getting account memberships of each permission'
 
-        $splatParams = @{
-            Uri         = $uri
-            Headers     = $headers
-            Method      = 'GET'
-            ContentType = 'application/json; charset=utf-8'
-        }
-    
-        $partialResultUsers = Invoke-RestMethod @splatParams
-        $existingAccounts += $partialResultUsers
-        $pageStart = $pageStart + $pageSize
-
-        Write-Information "Successfully queried [$($existingAccounts.count)] existing account"
-        
-    } while ($partialResultUsers.Count -eq $pageSize)
-
-
-    Write-Information 'Starting getting permission memberships of each account'
-
-    foreach ($account in $existingAccounts) {
+    foreach ($permission in $existingPermissions) {       
         $splatGetGroupMembers = @{
-            Uri         = "$($actionContext.Configuration.baseUrl)/tas/api/operators/id/$($account.id)/filters/operator"
+            Uri         = "$($actionContext.Configuration.baseUrl)/tas/api/operatorgroups/id/$($permission.id)/operators"
             Headers     = $headers
             Method      = 'GET'
             ContentType = 'application/json; charset=utf-8'
         }
-        
-        [array]$existingPermissions = Invoke-RestMethod @splatGetGroupMembers
+            
+        [array]$groupMembers = (Invoke-RestMethod @splatGetGroupMembers).id
 
-        if (-not([string]::IsNullOrEmpty($existingPermissions))) {
-            foreach ($permission in $existingPermissions) {
-                Write-Output @(
-                    @{
-                        AccountReferences   = @( 
-                            $account.id
-                        )
-                        PermissionReference = @{
-                            Id = $permission.id
-                        }
-                        Description         = "Operator filter $($permission.name)"
-                        DisplayName         = $permission.name
+        if ($groupMembers.count -gt 0) {
+            Write-Output @(
+                @{
+                    AccountReferences   = $groupMembers
+                    PermissionReference = @{
+                        Id = $permission.id
                     }
-                )
-            }
+                }
+            )
+
         }
     }
 
