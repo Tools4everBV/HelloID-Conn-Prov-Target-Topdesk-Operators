@@ -1,5 +1,5 @@
 #####################################################
-# HelloID-Conn-Prov-Target-Topdesk-Operators-RevokePermission-Filter-Category
+# HelloID-Conn-Prov-Target-Topdesk-Operators-RevokePermission-CategoryFilters
 # PowerShell V2
 #####################################################
 

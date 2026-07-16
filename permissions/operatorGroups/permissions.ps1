@@ -1,5 +1,5 @@
 #####################################################
-# HelloID-Conn-Prov-Target-Topdesk-Operators-Permissions-Groups
+# HelloID-Conn-Prov-Target-Topdesk-Operators-Permissions-OperatorGroups
 # PowerShell V2
 #####################################################
 
@@ -119,9 +119,7 @@ try {
             @{
                 DisplayName    = "Operator group - $($group.groupName)"
                 Identification = @{
-                    Id   = $group.id
-                    Name = $group.groupName
-                    Type = "OperatorGroup"
+                    Id = $group.id
                 }
             }
         )
