@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com), and
 this project adheres to [Semantic Versioning](https://semver.org).
 
+## [3.3.1] - 25-09-2026
+
+### Changed
+- `Get-TopdeskBranch` in `create.ps1` and `update.ps1` now uses a server-side query (`?query=<LookupField>==<value>`) instead of retrieving all branches and filtering client-side
+- Added `LookupField` parameter to `Get-TopdeskBranch`, so the branch can be looked up on a configurable field (default `name`)
+- Added error handling when multiple branches match the lookup value
+
 ## [3.3.0] - 12-06-2026
 
 ### Added
