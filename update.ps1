@@ -131,14 +131,15 @@ function Get-TopdeskBranch {
     }
     else {
         # Lookup Value is filled in, lookup value in Topdesk
+        $branchQuery = "$LookupField=='$($Account.branch.name)'"
+        $encodedBranchQuery = [uri]::EscapeDataString($branchQuery)
         $splatParams = @{
-            Uri     = "$baseUrl/tas/api/branches?query=$LookupField==$($Account.branch.name)"
+            Uri     = "$baseUrl/tas/api/branches?query=$encodedBranchQuery"
             Method  = 'GET'
             Headers = $Headers
         }
 
         $responseGet = Invoke-TopdeskRestMethod @splatParams
-
         # When branch is not found in Topdesk
         if ([string]::IsNullOrEmpty($responseGet.id)) {
             # As branch is a required field, if no branch is found, an error is logged
